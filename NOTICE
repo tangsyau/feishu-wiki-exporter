@@ -1,0 +1,10 @@
+Feishu Wiki Exporter
+Copyright 2026 Feishu Wiki Exporter contributors
+
+This product is derived from feishu-doc-export, originally published at:
+https://github.com/eternalfree/feishu-doc-export
+
+The original project and this derivative are distributed under the Apache
+License, Version 2.0. The application architecture and source files were
+substantially rewritten for .NET 10, Avalonia, resilient downloads, and
+cross-platform use.

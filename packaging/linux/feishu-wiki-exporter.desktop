@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=飞书知识库导出助手
+Name[en]=Feishu Wiki Exporter
+Comment=导出已授权的飞书知识库与云空间文件夹
+Comment[en]=Export authorized Feishu wiki and drive content
+Exec=FeishuWikiExporter
+Icon=feishu-wiki-exporter
+Terminal=false
+Categories=Office;Utility;
+StartupNotify=true

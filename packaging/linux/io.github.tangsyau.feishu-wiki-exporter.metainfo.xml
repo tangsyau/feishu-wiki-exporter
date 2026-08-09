@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.tangsyau.feishu-wiki-exporter</id>
+  <name>Feishu Wiki Exporter</name>
+  <summary>Export authorized Feishu wiki and drive content</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <description>
+    <p>A cross-platform desktop tool for exporting authorized Feishu wiki spaces and drive folders.</p>
+  </description>
+  <launchable type="desktop-id">feishu-wiki-exporter.desktop</launchable>
+  <url type="homepage">https://github.com/tangsyau/feishu-wiki-exporter</url>
+  <releases>
+    <release version="0.1.2" date="2026-08-09" />
+  </releases>
+</component>

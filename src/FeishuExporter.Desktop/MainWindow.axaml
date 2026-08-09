@@ -1,0 +1,290 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FeishuExporter.Desktop.MainWindow"
+        Title="飞书知识库导出助手"
+        Icon="avares://FeishuWikiExporter/Assets/AppIcon.png"
+        Width="1040" Height="700"
+        MinWidth="840" MinHeight="540"
+        UseLayoutRounding="True"
+        WindowStartupLocation="CenterScreen">
+  <Grid ColumnDefinitions="228,*">
+    <Border Grid.Column="0" Background="#F7F9FC" BorderBrush="#E2E7EF" BorderThickness="0,0,1,0">
+      <Grid Margin="14,24,14,18" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="22">
+        <StackPanel Grid.Row="0" Spacing="8" HorizontalAlignment="Center">
+          <Image Source="avares://FeishuWikiExporter/Assets/AppIcon.png" Width="72" Height="72" />
+          <TextBlock Text="飞书知识库导出助手" FontSize="17" FontWeight="SemiBold"
+                     Foreground="#172033" HorizontalAlignment="Center" />
+          <TextBlock Text="Feishu Wiki Exporter" Classes="muted" FontSize="12" HorizontalAlignment="Center" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Spacing="8">
+          <Button x:Name="StepOneButton" Classes="step selected" Click="StepOne_Click">
+            <Grid ColumnDefinitions="38,*" ColumnSpacing="10">
+              <Border x:Name="StepOneBadge" Width="34" Height="34" CornerRadius="17" Background="#2563EB">
+                <TextBlock Text="1" Foreground="White" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                <TextBlock Text="连接飞书" FontWeight="SemiBold" Foreground="#172033" />
+                <TextBlock x:Name="StepOneStateText" Text="填写应用凭证" Classes="muted" FontSize="12" />
+              </StackPanel>
+            </Grid>
+          </Button>
+
+          <Button x:Name="StepTwoButton" Classes="step" Click="StepTwo_Click">
+            <Grid ColumnDefinitions="38,*" ColumnSpacing="10">
+              <Border x:Name="StepTwoBadge" Width="34" Height="34" CornerRadius="17" Background="#E7EBF1">
+                <TextBlock x:Name="StepTwoBadgeText" Text="2" Foreground="#667085" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                <TextBlock Text="选择内容" FontWeight="SemiBold" Foreground="#172033" />
+                <TextBlock Text="选择要导出的内容" Classes="muted" FontSize="12" />
+              </StackPanel>
+            </Grid>
+          </Button>
+
+          <Button x:Name="StepThreeButton" Classes="step" Click="StepThree_Click">
+            <Grid ColumnDefinitions="38,*" ColumnSpacing="10">
+              <Border x:Name="StepThreeBadge" Width="34" Height="34" CornerRadius="17" Background="#E7EBF1">
+                <TextBlock x:Name="StepThreeBadgeText" Text="3" Foreground="#667085" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                <TextBlock Text="导出设置" FontWeight="SemiBold" Foreground="#172033" />
+                <TextBlock Text="设置导出选项" Classes="muted" FontSize="12" />
+              </StackPanel>
+            </Grid>
+          </Button>
+        </StackPanel>
+
+        <StackPanel Grid.Row="3" Spacing="7" Margin="12,0">
+          <TextBlock Text="App Secret 只在内存中使用，关闭程序后不会保留。"
+                     Classes="muted" FontSize="12" TextWrapping="Wrap" />
+          <TextBlock Text="请妥善保护应用凭证" Foreground="#2563EB" FontSize="12" />
+          <TextBlock x:Name="VersionText" Classes="muted" FontSize="11" Margin="0,5,0,0" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Grid Grid.Column="1">
+      <Grid x:Name="ConnectionPage" RowDefinitions="Auto,*,Auto">
+        <ScrollViewer Grid.Row="1">
+          <StackPanel Margin="32,28" Spacing="22" MaxWidth="720" HorizontalAlignment="Left">
+            <StackPanel Spacing="6">
+              <TextBlock Text="连接飞书" Classes="page-title" />
+              <TextBlock Text="输入企业自建应用凭证，用于读取已授权的知识库。"
+                         Classes="muted" FontSize="15" />
+            </StackPanel>
+
+            <Border Padding="20" BorderBrush="#DCE2EB" BorderThickness="1" CornerRadius="10">
+              <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="14" ColumnSpacing="14">
+                <TextBlock Grid.Row="0" Text="App ID" Classes="field-label" />
+                <TextBox Grid.Row="0" Grid.Column="1" x:Name="AppIdBox" PlaceholderText="cli_xxxxxxxxx" />
+                <TextBlock Grid.Row="1" Text="App Secret" Classes="field-label" />
+                <TextBox Grid.Row="1" Grid.Column="1" x:Name="AppSecretBox" PasswordChar="●"
+                         PlaceholderText="请输入 App Secret" />
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="凭证仅用于本次运行，不会写入配置文件或导出目录。"
+                           Classes="muted" FontSize="12" TextWrapping="Wrap" />
+              </Grid>
+            </Border>
+
+            <Border Padding="14,12" Background="#F7F9FC" BorderBrush="#E1E6EE" BorderThickness="1" CornerRadius="8">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <Border x:Name="ConnectionStatusDot" Width="10" Height="10" CornerRadius="5"
+                        Background="#9CA3AF" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" x:Name="ConnectionStatusText" Text="尚未测试连接"
+                           Classes="muted" VerticalAlignment="Center" />
+              </Grid>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="2" BorderBrush="#E2E7EF" BorderThickness="0,1,0,0" Padding="32,14">
+          <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+            <Button Grid.Column="1" x:Name="TestButton" Content="测试连接" Classes="secondary"
+                    Click="TestConnection_Click" />
+            <Button Grid.Column="2" x:Name="ConnectButton" Content="连接并继续" Classes="primary"
+                    Click="ConnectAndContinue_Click" />
+          </Grid>
+        </Border>
+      </Grid>
+
+      <Grid x:Name="SourcePage" RowDefinitions="Auto,*,Auto" IsVisible="False">
+        <Border Grid.Row="0" Margin="30,22,30,0" Padding="14,10" BorderBrush="#DCE2EB"
+                BorderThickness="1" CornerRadius="8" Background="#FBFCFE">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+            <Border Width="10" Height="10" CornerRadius="5" Background="#22A06B" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" x:Name="ConnectionSummaryText" Text="已连接飞书"
+                       Foreground="#4B5563" VerticalAlignment="Center" />
+            <Button Grid.Column="2" Content="重新连接" Classes="secondary" MinHeight="32" Padding="12,4"
+                    Click="BackToConnection_Click" />
+          </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Row="1">
+          <StackPanel Margin="30,22" Spacing="20">
+            <StackPanel Spacing="5">
+              <TextBlock Text="选择要导出的内容" Classes="page-title" />
+              <TextBlock Text="选择来源和范围，并指定本地导出目录。" Classes="muted" FontSize="15" />
+            </StackPanel>
+
+            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="13" ColumnSpacing="16">
+              <TextBlock Grid.Row="0" Text="导出来源" Classes="field-label" />
+              <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="*,*" ColumnSpacing="8">
+                <Button Grid.Column="0" x:Name="WikiSourceButton" Content="知识库" Classes="segment selected"
+                        Click="SelectWikiSource_Click" />
+                <Button Grid.Column="1" x:Name="CloudSourceButton" Content="云空间文件夹" Classes="segment"
+                        Click="SelectCloudSource_Click" />
+              </Grid>
+
+              <TextBlock Grid.Row="1" Text="知识库" Classes="field-label" />
+              <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <ComboBox Grid.Column="0" x:Name="SpaceBox" PlaceholderText="请选择知识库" />
+                <Button Grid.Column="1" x:Name="LoadSpacesButton" Content="刷新" Classes="secondary"
+                        Click="LoadSpaces_Click" />
+              </Grid>
+
+              <TextBlock Grid.Row="2" x:Name="ManualIdLabel" Text="知识库 ID" Classes="field-label" />
+              <StackPanel Grid.Row="2" Grid.Column="1" Spacing="6">
+                <Button x:Name="ManualIdToggleButton" Content="手动填写知识库 ID" Classes="subtle"
+                        HorizontalAlignment="Left" Click="ToggleManualSource_Click" />
+                <StackPanel x:Name="ManualIdPanel" Spacing="6">
+                  <TextBox x:Name="SourceIdBox" PlaceholderText="可选：知识库 ID 或 Folder Token" />
+                  <TextBlock x:Name="SourceIdHintText" Text="选择知识库后可以留空；手动填写时优先使用这里的 ID。"
+                             Classes="muted" FontSize="12" TextWrapping="Wrap" />
+                </StackPanel>
+              </StackPanel>
+
+              <TextBlock Grid.Row="3" Text="导出目录" Classes="field-label" />
+              <Grid Grid.Row="3" Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBox Grid.Column="0" x:Name="OutputPathBox" />
+                <Button Grid.Column="1" Content="浏览……" Classes="secondary" Click="ChooseOutput_Click" />
+              </Grid>
+            </Grid>
+
+            <TextBlock x:Name="SourceValidationText" Foreground="#D14343" FontSize="13"
+                       TextWrapping="Wrap" IsVisible="False" />
+
+            <Border Padding="18" BorderBrush="#DCE2EB" BorderThickness="1" CornerRadius="9" Background="#FBFCFE">
+              <Grid RowDefinitions="Auto,Auto" RowSpacing="14">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="下一步：导出设置（预览）" Classes="section-title" />
+                  <Button Grid.Column="1" Content="修改设置" Classes="secondary" MinHeight="32" Padding="12,4"
+                          Click="ContinueToSettings_Click" />
+                </Grid>
+                <Grid Grid.Row="1" ColumnDefinitions="*,*,*" ColumnSpacing="20">
+                  <StackPanel Grid.Column="0" Spacing="4">
+                    <TextBlock Text="文档格式" Classes="muted" FontSize="12" />
+                    <TextBlock x:Name="FormatPreviewText" Text="DOCX" FontWeight="SemiBold" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="4">
+                    <TextBlock Text="下载附件" Classes="muted" FontSize="12" />
+                    <TextBlock x:Name="AttachmentsPreviewText" Text="启用" FontWeight="SemiBold" Foreground="#168A5B" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2" Spacing="4">
+                    <TextBlock Text="附件位置" Classes="muted" FontSize="12" />
+                    <TextBlock x:Name="PlacementPreviewText" Text="与文档相同目录" FontWeight="SemiBold" />
+                  </StackPanel>
+                </Grid>
+              </Grid>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="2" BorderBrush="#E2E7EF" BorderThickness="0,1,0,0" Padding="30,14">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+            <Button Grid.Column="0" Content="上一步" Classes="secondary" Click="BackToConnection_Click" />
+            <Button Grid.Column="2" Content="继续：导出设置" Classes="primary" Click="ContinueToSettings_Click" />
+          </Grid>
+        </Border>
+      </Grid>
+
+      <Grid x:Name="SettingsPage" RowDefinitions="Auto,*,Auto" IsVisible="False">
+        <Border Grid.Row="0" Margin="30,22,30,0" Padding="14,10" BorderBrush="#DCE2EB"
+                BorderThickness="1" CornerRadius="8" Background="#FBFCFE">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+            <Border Width="10" Height="10" CornerRadius="5" Background="#22A06B" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" x:Name="ExportSourceSummaryText" Text="已选择导出来源"
+                       Foreground="#4B5563" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            <Button Grid.Column="2" Content="修改来源" Classes="secondary" MinHeight="32" Padding="12,4"
+                    Click="BackToSource_Click" />
+          </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Row="1">
+          <StackPanel Margin="30,22" Spacing="20">
+            <StackPanel Spacing="5">
+              <TextBlock Text="导出设置" Classes="page-title" />
+              <TextBlock Text="确认格式、附件和增量导出选项，然后开始备份。" Classes="muted" FontSize="15" />
+            </StackPanel>
+
+            <Border Padding="18" BorderBrush="#DCE2EB" BorderThickness="1" CornerRadius="9">
+              <Grid ColumnDefinitions="120,*,120,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="12">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="文档格式" Classes="field-label" />
+                <ComboBox Grid.Row="0" Grid.Column="1" x:Name="FormatBox" SelectedIndex="0">
+                  <ComboBoxItem Content="DOCX" Tag="docx" />
+                  <ComboBoxItem Content="PDF" Tag="pdf" />
+                </ComboBox>
+                <TextBlock Grid.Row="0" Grid.Column="2" Text="文件已存在" Classes="field-label" />
+                <ComboBox Grid.Row="0" Grid.Column="3" x:Name="ExistingPolicyBox" SelectedIndex="1">
+                  <ComboBoxItem Content="跳过" Tag="skip" />
+                  <ComboBoxItem Content="覆盖" Tag="overwrite" />
+                  <ComboBoxItem Content="保留两个版本" Tag="keep-both" />
+                </ComboBox>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="内嵌附件位置" Classes="field-label" />
+                <ComboBox Grid.Row="1" Grid.Column="1" x:Name="AttachmentPlacementBox" SelectedIndex="0">
+                  <ComboBoxItem Content="与主文档同一目录" Tag="alongside" />
+                  <ComboBoxItem Content="主文档同名子文件夹" Tag="subfolder" />
+                </ComboBox>
+                <TextBlock Grid.Row="1" Grid.Column="2" Text="并发任务数" Classes="field-label" />
+                <ComboBox Grid.Row="1" Grid.Column="3" x:Name="ParallelBox" SelectedIndex="1">
+                  <ComboBoxItem Content="1（最保守）" Tag="1" />
+                  <ComboBoxItem Content="2（推荐）" Tag="2" />
+                  <ComboBoxItem Content="3" Tag="3" />
+                  <ComboBoxItem Content="4" Tag="4" />
+                </ComboBox>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="其他选项" Classes="field-label" />
+                <StackPanel Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3" Spacing="9">
+                  <CheckBox x:Name="IncrementalBox" Content="跳过自上次成功导出后未修改的文档" IsChecked="True" />
+                  <CheckBox x:Name="AttachmentsBox" Content="下载附件（包括文档内嵌文件）" IsChecked="True" />
+                  <CheckBox x:Name="NavigationPagesBox" Content="识别疑似导航页，并在导出前确认跳过清单（推荐）" IsChecked="True"
+                            ToolTip.Tip="分析有子文档的页面；默认建议跳过无明显实际内容的页面，你可以在清单中逐项调整。" />
+                  <CheckBox x:Name="OfflineKnowledgeBox" Content="导出完成后生成离线知识库（实验功能）" IsChecked="True" />
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <Border Padding="16" BorderBrush="#DCE2EB" BorderThickness="1" CornerRadius="9" Background="#FBFCFE">
+              <StackPanel Spacing="10">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="导出进度" Classes="section-title" />
+                  <TextBlock Grid.Column="1" x:Name="CountText" Classes="muted" />
+                </Grid>
+                <ProgressBar x:Name="ExportProgressBar" Minimum="0" Maximum="100" Height="7" />
+                <TextBlock x:Name="ProgressText" Text="尚未开始" Classes="muted" TextWrapping="Wrap" />
+                <Expander Header="查看日志">
+                  <TextBox x:Name="LogBox" Height="120" Margin="0,8,0,0" IsReadOnly="True" AcceptsReturn="True"
+                           TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                           PlaceholderText="开始导出后，这里将显示进度和错误信息。" />
+                </Expander>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="2" BorderBrush="#E2E7EF" BorderThickness="0,1,0,0" Padding="30,14">
+          <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+            <Button Grid.Column="0" Content="上一步" Classes="secondary" Click="BackToSource_Click" />
+            <Button Grid.Column="2" x:Name="CancelButton" Content="取消" Classes="secondary"
+                    Click="CancelExport_Click" IsEnabled="False" />
+            <Button Grid.Column="3" x:Name="StartButton" Content="开始导出" Classes="primary"
+                    Click="StartExport_Click" />
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+  </Grid>
+</Window>

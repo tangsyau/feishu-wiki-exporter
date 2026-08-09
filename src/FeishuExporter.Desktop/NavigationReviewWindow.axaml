@@ -1,0 +1,56 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FeishuExporter.Desktop.NavigationReviewWindow"
+        Title="审核疑似导航页"
+        Icon="avares://FeishuWikiExporter/Assets/AppIcon.png"
+        Width="780" Height="620"
+        MinWidth="620" MinHeight="460"
+        UseLayoutRounding="True"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*,Auto">
+    <StackPanel Grid.Row="0" Margin="26,24,26,16" Spacing="7">
+      <TextBlock Text="审核疑似导航页" Classes="page-title" />
+      <TextBlock Text="已勾选的文档将只保留为目录，不导出文档文件。取消勾选即可恢复导出。"
+                 Classes="muted" FontSize="14" TextWrapping="Wrap" />
+      <Border Margin="0,8,0,0" Padding="12,9" Background="#EEF4FF" CornerRadius="7">
+        <TextBlock x:Name="CandidateCountText" Foreground="#2458A6" TextWrapping="Wrap" />
+      </Border>
+    </StackPanel>
+
+    <Border Grid.Row="1" Margin="26,0" BorderBrush="#DCE2EB" BorderThickness="1" CornerRadius="9">
+      <Grid RowDefinitions="Auto,*">
+        <Grid Grid.Row="0" Margin="14,10" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+          <TextBlock Text="跳过清单" Classes="section-title" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Content="全部勾选" Classes="subtle" Click="SelectAll_Click" />
+          <Button Grid.Column="2" Content="全部取消" Classes="subtle" Click="ClearAll_Click" />
+        </Grid>
+        <ScrollViewer Grid.Row="1" BorderBrush="#E6EAF0" BorderThickness="0,1,0,0">
+          <ItemsControl x:Name="CandidateList" Margin="12,8,12,12">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Padding="10,9" BorderBrush="#EDF0F4" BorderThickness="0,0,0,1">
+                  <CheckBox IsChecked="{Binding Skip}" HorizontalContentAlignment="Stretch">
+                    <StackPanel Margin="7,0,0,0" Spacing="3">
+                      <TextBlock Text="{Binding HierarchyPath}" FontWeight="SemiBold"
+                                 Foreground="#243047" TextWrapping="Wrap" />
+                      <TextBlock Text="{Binding Reason}" Classes="muted" FontSize="12"
+                                 TextWrapping="Wrap" />
+                    </StackPanel>
+                  </CheckBox>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="2" Margin="0,18,0,0" BorderBrush="#E2E7EF" BorderThickness="0,1,0,0" Padding="26,14">
+      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+        <TextBlock x:Name="SelectedCountText" VerticalAlignment="Center" Classes="muted" />
+        <Button Grid.Column="1" Content="取消导出" Classes="secondary" Click="Cancel_Click" />
+        <Button Grid.Column="2" Content="按所选清单继续" Classes="primary" Click="Continue_Click" />
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

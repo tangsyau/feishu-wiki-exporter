@@ -1,0 +1,82 @@
+name: release
+
+run-name: Release ${{ github.ref_name }}
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  exporter:
+    name: Build Exporter
+    uses: ./.github/workflows/build.yml
+    permissions:
+      actions: read
+      contents: read
+
+  reader:
+    name: Build Reader
+    uses: ./.github/workflows/reader.yml
+    permissions:
+      actions: read
+      contents: read
+
+  release:
+    name: Create draft release
+    needs:
+      - exporter
+      - reader
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Validate version and release notes
+        run: node scripts/check-version.mjs
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: downloaded-artifacts
+
+      - name: Prepare release assets
+        shell: bash
+        run: bash scripts/prepare-release.sh downloaded-artifacts release-assets
+
+      - name: Extract release notes
+        run: node scripts/extract-release-notes.mjs > release-notes.md
+
+      - name: Create or update draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            is_draft="$(gh release view "$tag" --json isDraft --jq '.isDraft')"
+            if [[ "$is_draft" != "true" ]]; then
+              echo "Release $tag is already published; refusing to replace its assets." >&2
+              exit 1
+            fi
+            gh release edit "$tag" --title "$tag" --notes-file release-notes.md
+            gh release upload "$tag" release-assets/* --clobber
+          else
+            gh release create "$tag" release-assets/* \
+              --verify-tag \
+              --draft \
+              --title "$tag" \
+              --notes-file release-notes.md
+          fi

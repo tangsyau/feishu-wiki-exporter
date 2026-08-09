@@ -1,0 +1,138 @@
+name: reader
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_call:
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: knowledge-reader/package-lock.json
+      - name: Validate project version
+        id: version
+        shell: bash
+        run: |
+          node scripts/check-version.mjs
+          version="$(tr -d '\r\n' < VERSION)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Install reader dependencies
+        working-directory: knowledge-reader
+        run: npm ci
+      - name: Build web frontend
+        working-directory: knowledge-reader
+        run: npm run build
+
+  desktop:
+    needs: web
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            kind: windows
+            build_args: --no-bundle
+            output: knowledge-reader/release/windows-x64/
+          # Tauri recommends Ubuntu 22.04 / Debian 12 as an AppImage baseline.
+          # Building on ubuntu-latest can unnecessarily raise the required glibc version.
+          - os: ubuntu-22.04
+            kind: linux
+            arch: x64
+            build_args: --bundles appimage,deb,rpm
+          - os: ubuntu-22.04-arm
+            kind: linux
+            arch: arm64
+            build_args: --bundles appimage,deb,rpm
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: knowledge-reader/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux desktop dependencies
+        if: runner.os == 'Linux'
+        run: >-
+          sudo apt-get update &&
+          sudo apt-get install -y
+          libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+          libxdo-dev libssl-dev patchelf rpm
+      - name: Install reader dependencies
+        working-directory: knowledge-reader
+        run: npm ci
+      - name: Build Tauri reader
+        working-directory: knowledge-reader
+        run: npm run tauri -- build ${{ matrix.build_args }}
+      - name: Stage Windows portable package
+        if: matrix.kind == 'windows'
+        shell: pwsh
+        working-directory: knowledge-reader
+        run: |
+          $destination = 'release/windows-x64'
+          New-Item -ItemType Directory -Force $destination | Out-Null
+          Copy-Item 'src-tauri/target/release/feishu-wiki-reader.exe' "$destination/FeishuWikiReader.exe"
+          Copy-Item '../LICENSE' "$destination/LICENSE"
+          Copy-Item '../NOTICE' "$destination/NOTICE"
+          Copy-Item '../src/FeishuExporter.Desktop/Assets/Fonts/OFL-1.1.txt' "$destination/NotoSansSC-OFL-1.1.txt"
+          Copy-Item 'PORTABLE-README.txt' "$destination/README.txt"
+      - name: Inspect Linux native packages
+        if: matrix.kind == 'linux'
+        shell: bash
+        working-directory: knowledge-reader
+        run: |
+          set -euo pipefail
+          deb_file="$(find src-tauri/target/release/bundle/deb -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          rpm_file="$(find src-tauri/target/release/bundle/rpm -maxdepth 1 -type f -name '*.rpm' -print -quit)"
+          test -n "$deb_file"
+          test -n "$rpm_file"
+          dpkg-deb --info "$deb_file"
+          rpm -qip "$rpm_file"
+          rpm -qp --requires "$rpm_file"
+      - name: Upload Windows reader package
+        if: matrix.kind == 'windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: feishu-wiki-reader-${{ needs.web.outputs.version }}-windows-x64-portable
+          path: ${{ matrix.output }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+      - name: Upload Linux AppImage
+        if: matrix.kind == 'linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: feishu-wiki-reader-${{ needs.web.outputs.version }}-linux-${{ matrix.arch }}-appimage
+          path: knowledge-reader/src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+      - name: Upload Linux DEB
+        if: matrix.kind == 'linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: feishu-wiki-reader-${{ needs.web.outputs.version }}-linux-${{ matrix.arch }}-deb
+          path: knowledge-reader/src-tauri/target/release/bundle/deb/*.deb
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+      - name: Upload Linux RPM
+        if: matrix.kind == 'linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: feishu-wiki-reader-${{ needs.web.outputs.version }}-linux-${{ matrix.arch }}-rpm
+          path: knowledge-reader/src-tauri/target/release/bundle/rpm/*.rpm
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7

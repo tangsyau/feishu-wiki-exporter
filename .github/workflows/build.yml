@@ -1,0 +1,139 @@
+name: build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate project version
+        id: version
+        shell: bash
+        run: |
+          node scripts/check-version.mjs
+          version="$(tr -d '\r\n' < VERSION)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore FeishuExporter.sln
+      - run: dotnet build FeishuExporter.sln -c Release --no-restore
+      - run: dotnet test FeishuExporter.sln -c Release --no-build
+
+  publish:
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            kind: windows
+          - os: windows-latest
+            rid: win-arm64
+            kind: windows
+          - os: ubuntu-latest
+            rid: linux-x64
+            kind: linux
+          - os: ubuntu-latest
+            rid: linux-arm64
+            kind: linux
+          - os: ubuntu-latest
+            rid: linux-musl-x64
+            kind: linux-musl
+          - os: ubuntu-latest
+            rid: linux-musl-arm64
+            kind: linux-musl
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Publish multi-file base
+        shell: bash
+        run: >-
+          dotnet publish src/FeishuExporter.Desktop/FeishuExporter.Desktop.csproj
+          -c Release -r ${{ matrix.rid }} --self-contained true
+          -p:PublishSingleFile=false
+          -p:PublishTrimmed=false -o publish/base-${{ matrix.rid }}
+      - name: Publish Windows single-file executable
+        if: matrix.kind == 'windows'
+        shell: pwsh
+        run: |
+          dotnet publish src/FeishuExporter.Desktop/FeishuExporter.Desktop.csproj `
+            -c Release -r ${{ matrix.rid }} --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:PublishTrimmed=false `
+            -p:DebugType=None `
+            -p:DebugSymbols=false `
+            -o publish/single-${{ matrix.rid }}
+      - name: Package Windows
+        if: matrix.kind == 'windows'
+        shell: pwsh
+        run: >-
+          ./scripts/package-windows.ps1
+          -PublishDirectory publish/single-${{ matrix.rid }}
+          -Rid ${{ matrix.rid }}
+          -Version ${{ needs.test.outputs.version }}
+          -OutputDirectory release
+
+      - name: Package Linux AppImage and portable folder
+        if: matrix.kind == 'linux'
+        shell: bash
+        run: >-
+          bash ./scripts/package-linux.sh
+          publish/base-${{ matrix.rid }}
+          ${{ matrix.rid }}
+          release
+          ${{ needs.test.outputs.version }}
+          --appimage
+
+      - name: Package Alpine portable folder
+        if: matrix.kind == 'linux-musl'
+        shell: bash
+        run: >-
+          bash ./scripts/package-linux.sh
+          publish/base-${{ matrix.rid }}
+          ${{ matrix.rid }}
+          release
+          ${{ needs.test.outputs.version }}
+
+      - name: Upload Windows package
+        if: matrix.kind == 'windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: feishu-wiki-exporter-${{ needs.test.outputs.version }}-${{ matrix.rid }}
+          path: release/feishu-wiki-exporter-${{ needs.test.outputs.version }}-${{ matrix.rid }}.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+      - name: Upload Linux AppImage
+        if: matrix.kind == 'linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: feishu-wiki-exporter-${{ needs.test.outputs.version }}-${{ matrix.rid }}-appimage
+          path: release/feishu-wiki-exporter-${{ needs.test.outputs.version }}-${{ matrix.rid }}.AppImage
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+      - name: Upload Linux portable folder
+        if: startsWith(matrix.kind, 'linux')
+        uses: actions/upload-artifact@v7
+        with:
+          name: feishu-wiki-exporter-${{ needs.test.outputs.version }}-${{ matrix.rid }}-portable
+          path: release/feishu-wiki-exporter-${{ needs.test.outputs.version }}-${{ matrix.rid }}-portable.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7

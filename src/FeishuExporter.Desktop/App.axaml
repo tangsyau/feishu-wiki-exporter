@@ -1,0 +1,93 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="FeishuExporter.Desktop.App"
+             RequestedThemeVariant="Light">
+  <Application.Resources>
+    <FontFamily x:Key="AppFont">avares://FeishuWikiExporter/Assets/Fonts#Noto Sans SC</FontFamily>
+  </Application.Resources>
+  <Application.Styles>
+    <FluentTheme />
+    <Style Selector="Window">
+      <Setter Property="Background" Value="#FFFFFF" />
+      <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+      <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style Selector="TextBlock.page-title">
+      <Setter Property="FontSize" Value="24" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#172033" />
+    </Style>
+    <Style Selector="TextBlock.section-title">
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#172033" />
+    </Style>
+    <Style Selector="TextBlock.field-label">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#243047" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="#6B7280" />
+    </Style>
+    <Style Selector="TextBox">
+      <Setter Property="MinHeight" Value="38" />
+      <Setter Property="Padding" Value="10,6" />
+      <Setter Property="CornerRadius" Value="7" />
+    </Style>
+    <Style Selector="ComboBox">
+      <Setter Property="MinHeight" Value="38" />
+      <Setter Property="Padding" Value="9,5" />
+      <Setter Property="CornerRadius" Value="7" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="MinHeight" Value="38" />
+      <Setter Property="Padding" Value="15,6" />
+      <Setter Property="CornerRadius" Value="7" />
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="#2563EB" />
+      <Setter Property="Foreground" Value="#FFFFFF" />
+      <Setter Property="BorderBrush" Value="#2563EB" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Padding" Value="22,8" />
+    </Style>
+    <Style Selector="Button.secondary">
+      <Setter Property="Background" Value="#FFFFFF" />
+      <Setter Property="Foreground" Value="#243047" />
+      <Setter Property="BorderBrush" Value="#D3DAE6" />
+    </Style>
+    <Style Selector="Button.subtle">
+      <Setter Property="MinHeight" Value="28" />
+      <Setter Property="Padding" Value="0,3" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#5E6B7F" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+    <Style Selector="Button.step">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Padding" Value="12" />
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="Button.step.selected">
+      <Setter Property="Background" Value="#EAF2FF" />
+    </Style>
+    <Style Selector="Button.segment">
+      <Setter Property="Background" Value="#FFFFFF" />
+      <Setter Property="Foreground" Value="#5F6877" />
+      <Setter Property="BorderBrush" Value="#D6DCE6" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.segment.selected">
+      <Setter Property="Background" Value="#EEF4FF" />
+      <Setter Property="Foreground" Value="#2563EB" />
+      <Setter Property="BorderBrush" Value="#2563EB" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+  </Application.Styles>
+</Application>
