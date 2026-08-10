@@ -6,6 +6,8 @@ import { TauriKnowledgeProvider } from "./providers/tauri-provider";
 import { searchKnowledge } from "./search";
 import type {
   KnowledgeDocument,
+  KnowledgeBlock,
+  KnowledgeInline,
   KnowledgeManifest,
   KnowledgeSearchIndex,
   KnowledgeTreeNode,
@@ -117,6 +119,20 @@ contentElement.addEventListener("click", event => {
   if (openOriginal?.dataset.openOriginal) {
     void provider.openOriginal(openOriginal.dataset.openOriginal).catch(showError);
   }
+  const pageLink = (event.target as HTMLElement).closest<HTMLButtonElement>("button[data-page-id]");
+  if (pageLink?.dataset.pageId) {
+    const targetId = pageLink.dataset.pageId;
+    const anchor = pageLink.dataset.anchor;
+    if (targetId === activeDocumentId && anchor) {
+      document.getElementById(blockAnchor(anchor))?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      ++searchSequence;
+      searchReturnState = null;
+      searchInput.value = "";
+      void showDocument(targetId, undefined, anchor);
+    }
+    return;
+  }
   const result = (event.target as HTMLElement).closest<HTMLButtonElement>("button[data-result-id]");
   if (result?.dataset.resultId) {
     if (searchReturnState) {
@@ -149,7 +165,7 @@ async function loadKnowledge(): Promise<void> {
       provider.loadTree(),
       provider.loadSearchIndex()
     ]);
-    if (manifest.format !== "feishu-offline-knowledge" || ![1, 2].includes(manifest.version)) {
+    if (manifest.format !== "feishu-offline-knowledge" || ![1, 2, 3].includes(manifest.version)) {
       throw new Error("离线知识库格式不受当前阅读器支持。");
     }
     documentsById = new Map(manifest.documents.map(document => [document.id, document]));
@@ -255,32 +271,39 @@ function renderPageTreeNode(node: KnowledgeTreeNode, depth: number, expanded = f
   return container;
 }
 
-async function showDocument(id: string, returnToSearchQuery?: string): Promise<void> {
-  const document = documentsById.get(id);
-  if (!document) return;
+async function showDocument(id: string, returnToSearchQuery?: string, anchor?: string): Promise<void> {
+  const knowledgeDocument = documentsById.get(id);
+  if (!knowledgeDocument) return;
   const sequence = searchSequence;
   activeDocumentId = id;
   updateTreeSelection(id);
   contentElement.scrollTop = 0;
-  contentElement.innerHTML = articleHeader(document, returnToSearchQuery);
+  contentElement.innerHTML = articleHeader(knowledgeDocument, returnToSearchQuery);
 
-  if (!document.pagePath) {
+  if (!knowledgeDocument.pagePath) {
     contentElement.insertAdjacentHTML("beforeend", `
       <div class="file-placeholder">
-        <div class="file-placeholder-icon">${kindLabel(document.kind)}</div>
-        <h2>${escapeHtml(document.title)}</h2>
-        <p>第一版阅读器保留此类原始文件，目前不在窗口内转换显示。</p>
-        <button class="primary-action" data-open-original="${escapeAttribute(document.originalPath)}">打开原始文件</button>
+        <div class="file-placeholder-icon">${kindLabel(knowledgeDocument.kind)}</div>
+        <h2>${escapeHtml(knowledgeDocument.title)}</h2>
+        <p>阅读器保留了此类文件，但暂不在窗口内转换显示。</p>
+        ${knowledgeDocument.originalPath ? `<button class="primary-action" data-open-original="${escapeAttribute(knowledgeDocument.originalPath)}">打开原始文件</button>` : ""}
       </div>`);
     return;
   }
 
   try {
-    const page = await provider.loadPage(document.pagePath);
+    const page = await provider.loadPage(knowledgeDocument.pagePath);
     if (sequence !== searchSequence || activeDocumentId !== id) return;
     const article = documentElement("article", "article-body");
-    article.innerHTML = sanitizeArticleHtml(page.html);
+    article.innerHTML = page.blocks
+      ? page.blocks.map(renderKnowledgeBlock).join("")
+      : sanitizeArticleHtml(page.html ?? "");
     contentElement.append(article);
+    await hydrateImages(article);
+    if (anchor) {
+      window.requestAnimationFrame(() =>
+        document.getElementById(blockAnchor(anchor))?.scrollIntoView({ block: "start" }));
+    }
   } catch (error) {
     if (sequence !== searchSequence || activeDocumentId !== id) return;
     const message = error instanceof Error ? error.message : String(error);
@@ -356,9 +379,109 @@ function articleHeader(document: KnowledgeDocument, returnToSearchQuery?: string
       <div class="breadcrumbs">${escapeHtml(document.breadcrumb || manifest?.name || "")}</div>
       <div class="article-title-row">
         <h1>${escapeHtml(document.title)}</h1>
-        <button class="secondary-action" data-open-original="${escapeAttribute(document.originalPath)}">打开原文件</button>
+        ${document.originalPath ? `<button class="secondary-action" data-open-original="${escapeAttribute(document.originalPath)}">打开原文件</button>` : ""}
       </div>
     </div>`;
+}
+
+function renderKnowledgeBlock(block: KnowledgeBlock): string {
+  const id = ` id="${escapeAttribute(blockAnchor(block.id))}"`;
+  const content = renderInlines(block.inlines, block.text ?? "");
+  const children = block.children?.map(renderKnowledgeBlock).join("") ?? "";
+  switch (block.type) {
+    case "paragraph":
+      return `<p${id}>${content || "<br>"}</p>${children}`;
+    case "heading": {
+      const level = Math.min(6, Math.max(1, block.level ?? 2));
+      return `<h${level}${id}>${content}</h${level}>${children}`;
+    }
+    case "bullet":
+      return `<div class="block-list-item"${id}><span class="block-marker">•</span><div>${content}${children}</div></div>`;
+    case "ordered":
+      return `<div class="block-list-item"${id}><span class="block-marker">1.</span><div>${content}${children}</div></div>`;
+    case "todo":
+      return `<div class="block-list-item"${id}><span class="block-marker">${block.checked ? "☑" : "☐"}</span><div>${content}${children}</div></div>`;
+    case "code":
+      return `<pre${id}><code>${escapeHtml(block.text ?? "")}</code></pre>${children}`;
+    case "quote":
+    case "quoteContainer":
+      return `<blockquote${id}>${content}${children}</blockquote>`;
+    case "callout":
+      return `<aside class="callout"${id}>${content}${children}</aside>`;
+    case "divider":
+      return `<hr${id}>`;
+    case "image":
+      return block.assetPath
+        ? `<figure${id}><img data-asset-path="${escapeAttribute(block.assetPath)}" alt="${escapeAttribute(block.fileName ?? "图片")}"><figcaption>${escapeHtml(block.fileName ?? "")}</figcaption></figure>${children}`
+        : `<div class="unsupported-block"${id}>图片资源未能下载</div>${children}`;
+    case "file":
+      return block.assetPath
+        ? `<button class="attachment-card" type="button" data-open-original="${escapeAttribute(block.assetPath)}"${id}><span>附件</span><strong>${escapeHtml(block.fileName ?? "打开附件")}</strong></button>${children}`
+        : `<div class="unsupported-block"${id}>附件资源未能下载：${escapeHtml(block.fileName ?? "未命名附件")}</div>${children}`;
+    case "subpages":
+      return block.links.length
+        ? `<nav class="subpage-list"${id}><div class="block-label">子页面</div>${renderBlockLinks(block)}</nav>`
+        : "";
+    case "toc":
+      return block.links.length
+        ? `<nav class="page-toc"${id}><div class="block-label">本页目录</div>${renderBlockLinks(block)}</nav>`
+        : "";
+    case "table":
+      return `<div class="normalized-table"${id}>${children}</div>`;
+    case "tableCell":
+      return `<div class="normalized-table-cell"${id}>${content}${children}</div>`;
+    case "container":
+      return `<div class="block-container"${id}>${content}${children}</div>`;
+    default:
+      return `<div class="unsupported-block"${id}><strong>暂不支持的内容块</strong><span>飞书块类型 ${block.sourceType ?? "未知"}</span>${content ? `<p>${content}</p>` : ""}${children}</div>`;
+  }
+}
+
+function renderBlockLinks(block: KnowledgeBlock): string {
+  return block.links.map(link => `
+    <button type="button" class="page-link-card" data-page-id="${escapeAttribute(link.targetPageId)}"
+            ${link.anchor ? `data-anchor="${escapeAttribute(link.anchor)}"` : ""}>
+      <span>${escapeHtml(link.title)}</span><span aria-hidden="true">→</span>
+    </button>`).join("");
+}
+
+function renderInlines(inlines: KnowledgeInline[] | undefined, fallback: string): string {
+  if (!inlines?.length) return escapeHtml(fallback);
+  return inlines.map(inline => {
+    let value = escapeHtml(inline.text);
+    if (inline.code) value = `<code>${value}</code>`;
+    if (inline.bold) value = `<strong>${value}</strong>`;
+    if (inline.italic) value = `<em>${value}</em>`;
+    if (inline.underline) value = `<u>${value}</u>`;
+    if (inline.strike) value = `<s>${value}</s>`;
+    if (inline.targetPageId) {
+      return `<button type="button" class="inline-page-link" data-page-id="${escapeAttribute(inline.targetPageId)}">${value}</button>`;
+    }
+    if (inline.url && /^(https?:|mailto:)/iu.test(inline.url)) {
+      return `<a href="${escapeAttribute(inline.url)}" target="_blank" rel="noreferrer">${value}</a>`;
+    }
+    return value;
+  }).join("");
+}
+
+async function hydrateImages(article: HTMLElement): Promise<void> {
+  const images = [...article.querySelectorAll<HTMLImageElement>("img[data-asset-path]")];
+  await Promise.all(images.map(async image => {
+    const path = image.dataset.assetPath;
+    if (!path) return;
+    try {
+      image.src = await provider.loadAssetData(path);
+    } catch {
+      image.replaceWith(Object.assign(document.createElement("div"), {
+        className: "unsupported-block",
+        textContent: "图片资源无法读取"
+      }));
+    }
+  }));
+}
+
+function blockAnchor(id: string): string {
+  return `block-${id.replace(/[^a-zA-Z0-9_-]/gu, "-")}`;
 }
 
 function showWelcome(): void {

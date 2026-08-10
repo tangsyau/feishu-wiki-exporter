@@ -22,6 +22,13 @@ public enum EmbeddedAttachmentPlacement
     DocumentSubfolder
 }
 
+public enum ExportOutputMode
+{
+    Reader,
+    Office,
+    ReaderAndOffice
+}
+
 public enum ExportItemStatus
 {
     Pending,
@@ -47,6 +54,7 @@ public sealed record ExportOptions
     public required ExportSourceType SourceType { get; init; }
     public required string SourceId { get; init; }
     public required string ExportRoot { get; init; }
+    public ExportOutputMode OutputMode { get; init; } = ExportOutputMode.Office;
     public string DocumentFormat { get; init; } = "docx";
     public ExistingFilePolicy ExistingFilePolicy { get; init; } = ExistingFilePolicy.Overwrite;
     public EmbeddedAttachmentPlacement EmbeddedAttachmentPlacement { get; init; } = EmbeddedAttachmentPlacement.AlongsideDocument;
@@ -131,6 +139,8 @@ public sealed record NavigationPageAnalysis(
     IReadOnlyList<int> UnknownBlockTypes,
     int IgnoredNestedBlockCount,
     bool HasNavigationLikeTable,
+    bool HasNavigationAddOnPattern,
+    IReadOnlyList<string> AddOnComponentTypeIds,
     string Reason,
     string? Error);
 
@@ -142,7 +152,8 @@ public sealed class ExportPreparation
         List<ExportFailure> failures,
         List<string> warnings,
         List<NavigationPageCandidate> navigationCandidates,
-        List<NavigationPageAnalysis> navigationAnalyses)
+        List<NavigationPageAnalysis> navigationAnalyses,
+        Dictionary<string, DocumentInspection>? documentInspections = null)
     {
         SourceName = sourceName;
         Items = items;
@@ -150,6 +161,7 @@ public sealed class ExportPreparation
         Warnings = warnings;
         NavigationCandidates = navigationCandidates;
         NavigationAnalyses = navigationAnalyses;
+        DocumentInspections = documentInspections ?? new Dictionary<string, DocumentInspection>(StringComparer.Ordinal);
     }
 
     public string SourceName { get; }
@@ -158,6 +170,7 @@ public sealed class ExportPreparation
     public IReadOnlyList<NavigationPageAnalysis> NavigationAnalyses { get; }
     internal List<ExportItem> Items { get; }
     internal List<ExportFailure> Failures { get; }
+    internal IReadOnlyDictionary<string, DocumentInspection> DocumentInspections { get; }
 }
 
 public sealed record DocumentContentAnalysis(
@@ -167,7 +180,9 @@ public sealed record DocumentContentAnalysis(
     IReadOnlyList<int> RichBlockTypes,
     IReadOnlyList<int> UnknownBlockTypes,
     int IgnoredNestedBlockCount,
-    bool HasNavigationLikeTable)
+    bool HasNavigationLikeTable,
+    bool HasNavigationAddOnPattern,
+    IReadOnlyList<string> AddOnComponentTypeIds)
 {
     public bool HasRichContent => RichBlockTypes.Count > 0;
     public bool HasUnknownBlock => UnknownBlockTypes.Count > 0;
@@ -187,7 +202,10 @@ public sealed record DocumentContentAnalysis(
 
 public sealed record DocumentInspection(
     IReadOnlyList<ExportItem> EmbeddedFiles,
-    DocumentContentAnalysis Content);
+    DocumentContentAnalysis Content)
+{
+    public IReadOnlyList<DocumentBlockDto> Blocks { get; init; } = [];
+}
 
 public sealed record OfflineKnowledgeProgress(int Completed, int Total, string CurrentItem);
 
@@ -231,7 +249,7 @@ internal sealed record CloudFileDto(
     [property: JsonPropertyName("type")] string Type,
     [property: JsonPropertyName("modified_time")] string? ModifiedTime);
 
-internal sealed class DocumentBlockDto
+public sealed class DocumentBlockDto
 {
     [JsonPropertyName("block_id")]
     public string BlockId { get; init; } = string.Empty;
@@ -252,7 +270,7 @@ internal sealed class DocumentBlockDto
     public Dictionary<string, JsonElement>? Properties { get; init; }
 }
 
-internal sealed record DocumentFileBlockDto(
+public sealed record DocumentFileBlockDto(
     [property: JsonPropertyName("token")] string? Token,
     [property: JsonPropertyName("name")] string? Name);
 

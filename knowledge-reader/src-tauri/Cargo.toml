@@ -1,6 +1,6 @@
 [package]
 name = "feishu-wiki-reader"
-version = "0.1.4"
+version = "0.2.0"
 description = "Offline reader for Feishu Wiki Exporter knowledge packages"
 authors = ["Feishu Wiki Exporter contributors"]
 license = "Apache-2.0"
@@ -11,6 +11,7 @@ edition = "2021"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+base64 = "0.22"
 open = "5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

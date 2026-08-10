@@ -44,6 +44,10 @@ export class TauriKnowledgeProvider implements KnowledgeProvider {
     return this.readJson<KnowledgePage>(relativePath);
   }
 
+  loadAssetData(relativePath: string): Promise<string> {
+    return invoke<string>("read_knowledge_asset", { relativePath });
+  }
+
   async openOriginal(relativePath: string): Promise<void> {
     await invoke("open_original", { relativePath });
   }

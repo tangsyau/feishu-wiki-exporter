@@ -35,6 +35,10 @@ public sealed class ExportEngine(FeishuApiClient apiClient)
         CancellationToken cancellationToken = default)
     {
         ValidateOptions(options);
+        if (options.OutputMode == ExportOutputMode.Reader)
+        {
+            throw new InvalidOperationException("仅生成 Reader 离线包时不应调用 Office 导出流程。");
+        }
         Directory.CreateDirectory(options.ExportRoot);
 
         var sourceName = preparation.SourceName;
@@ -53,11 +57,17 @@ public sealed class ExportEngine(FeishuApiClient apiClient)
         }
         var sourceDirectory = Path.Combine(options.ExportRoot, PathPlanner.SanitizeSegment(sourceName));
         Directory.CreateDirectory(sourceDirectory);
+        var stateDirectory = ExportStateLayout.GetSourceStateDirectory(options);
+        Directory.CreateDirectory(stateDirectory);
 
         await NavigationAnalysisStore.SaveAsync(
             sourceDirectory,
             preparation.NavigationAnalyses,
             cancellationToken);
+        File.Copy(
+            Path.Combine(sourceDirectory, ".feishu-export", "navigation-analysis.json"),
+            Path.Combine(stateDirectory, "navigation-analysis.json"),
+            overwrite: true);
 
         var planned = PathPlanner.Plan(
             items,
@@ -65,6 +75,10 @@ public sealed class ExportEngine(FeishuApiClient apiClient)
             options.DownloadAttachments,
             options.EmbeddedAttachmentPlacement);
         await ExportOrderStore.SaveAsync(sourceDirectory, planned, cancellationToken);
+        File.Copy(
+            Path.Combine(sourceDirectory, ".feishu-export", "order.json"),
+            Path.Combine(stateDirectory, "order.json"),
+            overwrite: true);
         foreach (var folder in planned.Where(x => x.Item.IsFolder))
         {
             Directory.CreateDirectory(Path.Combine(sourceDirectory, folder.RelativePath));
@@ -72,7 +86,11 @@ public sealed class ExportEngine(FeishuApiClient apiClient)
 
         var workItems = planned.Where(x => !x.Item.IsFolder).ToList();
         var sourceKey = $"{options.SourceType}:{options.SourceId}";
-        var state = new ExportStateStore(Path.Combine(sourceDirectory, ".feishu-export", "state.json"));
+        var statePath = Path.Combine(stateDirectory, "office-state.json");
+        ExportStateLayout.TryMigrateFile(
+            Path.Combine(sourceDirectory, ".feishu-export", "state.json"),
+            statePath);
+        var state = new ExportStateStore(statePath);
         await state.InitializeAsync(cancellationToken);
         if (options.SourceType == ExportSourceType.Wiki && options.TreatWikiParentsAsNavigationFolders)
         {
@@ -251,12 +269,19 @@ public sealed class ExportEngine(FeishuApiClient apiClient)
             items = [.. await apiClient.ListFolderItemsAsync(options.SourceId, scanProgress, cancellationToken)];
         }
 
+        await ExportStateLayout.SaveSourceAsync(options, sourceName, cancellationToken);
+
         var failures = new List<ExportFailure>();
         var warnings = new List<string>();
         var navigationCandidates = new List<NavigationPageCandidate>();
         var navigationAnalyses = new List<NavigationPageAnalysis>();
+        var documentInspections = new Dictionary<string, DocumentInspection>(StringComparer.Ordinal);
 
-        var wikiParentTokens = options.SourceType == ExportSourceType.Wiki &&
+        var includesReader = options.OutputMode is ExportOutputMode.Reader or ExportOutputMode.ReaderAndOffice;
+        var includesOffice = options.OutputMode is ExportOutputMode.Office or ExportOutputMode.ReaderAndOffice;
+
+        var wikiParentTokens = includesOffice &&
+                               options.SourceType == ExportSourceType.Wiki &&
                                options.TreatWikiParentsAsNavigationFolders
             ? items
                 .Where(item => !string.IsNullOrWhiteSpace(item.ParentHierarchyToken))
@@ -274,7 +299,7 @@ public sealed class ExportEngine(FeishuApiClient apiClient)
         var documents = items
             .Where(item =>
                 string.Equals(item.Type, "docx", StringComparison.OrdinalIgnoreCase) &&
-                (options.DownloadAttachments || navigationCandidateTokens.Contains(item.HierarchyToken)))
+                (includesReader || options.DownloadAttachments || navigationCandidateTokens.Contains(item.HierarchyToken)))
             .ToList();
         var embeddedCount = 0;
         for (var index = 0; index < documents.Count; index++)
@@ -289,7 +314,11 @@ public sealed class ExportEngine(FeishuApiClient apiClient)
                 failures.Count,
                 $"正在分析文档 {index + 1}/{documents.Count}：{document.Title}",
                 ExportItemStatus.Pending,
-                options.DownloadAttachments ? $"已发现 {embeddedCount} 个内嵌文件" : "正在判断是否为导航页"));
+                includesReader
+                    ? $"正在读取页面块；已发现 {embeddedCount} 个内嵌文件"
+                    : options.DownloadAttachments
+                        ? $"已发现 {embeddedCount} 个内嵌文件"
+                        : "正在判断是否为导航页"));
 
             try
             {
@@ -303,9 +332,13 @@ public sealed class ExportEngine(FeishuApiClient apiClient)
                     document,
                     cancellationToken,
                     childPageTitles);
+                documentInspections[document.HierarchyToken] = inspection;
                 if (options.DownloadAttachments)
                 {
                     items.AddRange(inspection.EmbeddedFiles);
+                }
+                if (includesReader || options.DownloadAttachments)
+                {
                     embeddedCount += inspection.EmbeddedFiles.Count;
                 }
 
@@ -328,6 +361,8 @@ public sealed class ExportEngine(FeishuApiClient apiClient)
                         inspection.Content.UnknownBlockTypes,
                         inspection.Content.IgnoredNestedBlockCount,
                         inspection.Content.HasNavigationLikeTable,
+                        inspection.Content.HasNavigationAddOnPattern,
+                        inspection.Content.AddOnComponentTypeIds,
                         reason,
                         null));
 
@@ -374,6 +409,8 @@ public sealed class ExportEngine(FeishuApiClient apiClient)
                         [],
                         0,
                         false,
+                        false,
+                        [],
                         reason,
                         ex.Message));
                 }
@@ -407,7 +444,8 @@ public sealed class ExportEngine(FeishuApiClient apiClient)
             failures,
             warnings,
             navigationCandidates,
-            navigationAnalyses);
+            navigationAnalyses,
+            documentInspections);
     }
 
     private static string CreateNavigationReason(DocumentContentAnalysis analysis)
@@ -437,12 +475,25 @@ public sealed class ExportEngine(FeishuApiClient apiClient)
             {
                 reasons.Add("发现内容均为链接且与标题或子页面对应的表格");
             }
-            if (analysis.UnknownBlockTypes.Count > 0)
+            if (analysis.UnknownBlockTypes.Contains(40))
             {
-                reasons.Add("发现尚未识别的块类型 " + string.Join("、", analysis.UnknownBlockTypes));
+                var componentTypes = analysis.AddOnComponentTypeIds.Count > 0
+                    ? "（组件类型 " + string.Join("、", analysis.AddOnComponentTypeIds) + "）"
+                    : string.Empty;
+                reasons.Add("发现用途无法确认的新版文档小组件" + componentTypes);
+            }
+            var otherUnknownTypes = analysis.UnknownBlockTypes.Where(type => type != 40).ToArray();
+            if (otherUnknownTypes.Length > 0)
+            {
+                reasons.Add("发现尚未识别的块类型 " + string.Join("、", otherUnknownTypes));
             }
             reasons.Add("默认保留，请人工确认");
             return string.Join("；", reasons);
+        }
+
+        if (analysis.HasNavigationAddOnPattern)
+        {
+            return "仅发现目录型小组件以及成组对应的标题和子页面目录，未发现实际正文";
         }
 
         if (analysis.MaxConsecutiveBodyBlocks == 0 && analysis.BodyCharacterCount == 0)

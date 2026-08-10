@@ -5,6 +5,8 @@ namespace FeishuExporter.Core;
 
 internal static class DocumentContentAnalyzer
 {
+    private const int AddOnBlockType = 40;
+
     private static readonly IReadOnlyDictionary<int, string> BodyTextFields =
         new Dictionary<int, string>
         {
@@ -25,7 +27,7 @@ internal static class DocumentContentAnalyzer
     private static readonly HashSet<int> RichContentTypes =
     [
         18, 19, 20, 21, 23, 26, 27, 28, 29, 30, 31, 33,
-        35, 36, 37, 38, 39, 40, 41, 43
+        35, 36, 37, 38, 39, 41, 43
     ];
 
     public static DocumentContentAnalysis Analyze(
@@ -49,6 +51,23 @@ internal static class DocumentContentAnalyzer
             blocksById,
             childIds,
             navigationLabels);
+        var headingCount = blockTypeCounts
+            .Where(pair => HeadingTypes.Contains(pair.Key))
+            .Sum(pair => pair.Value);
+        var catalogCount = GetBlockTypeCount(blockTypeCounts, 42) +
+                           GetBlockTypeCount(blockTypeCounts, 51);
+        var hasNavigationAddOnPattern = GetBlockTypeCount(blockTypeCounts, AddOnBlockType) > 0 &&
+                                        headingCount >= 2 &&
+                                        catalogCount >= 2 &&
+                                        headingCount == catalogCount;
+        var addOnComponentTypeIds = blockList
+            .Where(block => block.BlockType == AddOnBlockType)
+            .Select(ReadAddOnComponentTypeId)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(value => value, StringComparer.Ordinal)
+            .ToArray();
 
         var currentConsecutive = 0;
         var maximumConsecutive = 0;
@@ -110,6 +129,15 @@ internal static class DocumentContentAnalyzer
                 continue;
             }
 
+            if (block.BlockType == AddOnBlockType)
+            {
+                if (!hasNavigationAddOnPattern)
+                {
+                    unknownBlockTypes.Add(AddOnBlockType);
+                }
+                continue;
+            }
+
             if (RichContentTypes.Contains(block.BlockType))
             {
                 richBlockTypes.Add(block.BlockType);
@@ -129,7 +157,26 @@ internal static class DocumentContentAnalyzer
             richBlockTypes.Order().ToArray(),
             unknownBlockTypes.Order().ToArray(),
             ignoredNestedBlockCount,
-            navigationLikeTables.Count > 0);
+            navigationLikeTables.Count > 0,
+            hasNavigationAddOnPattern,
+            addOnComponentTypeIds);
+    }
+
+    private static int GetBlockTypeCount(IReadOnlyDictionary<int, int> counts, int blockType) =>
+        counts.TryGetValue(blockType, out var count) ? count : 0;
+
+    private static string? ReadAddOnComponentTypeId(DocumentBlockDto block)
+    {
+        if (block.Properties is null ||
+            !block.Properties.TryGetValue("add_ons", out var addOn) ||
+            addOn.ValueKind != JsonValueKind.Object ||
+            !addOn.TryGetProperty("component_type_id", out var componentTypeId) ||
+            componentTypeId.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        return componentTypeId.GetString();
     }
 
     private static Dictionary<string, string> BuildParentIds(
@@ -309,6 +356,7 @@ internal static class DocumentContentAnalyzer
 
             if (NavigationOrDecorationTypes.Contains(parent.BlockType) ||
                 RichContentTypes.Contains(parent.BlockType) ||
+                parent.BlockType == AddOnBlockType ||
                 navigationLikeTables.Contains(parent.BlockId) ||
                 !IsKnownBlockType(parent.BlockType))
             {
@@ -325,6 +373,7 @@ internal static class DocumentContentAnalyzer
         HeadingTypes.Contains(blockType) ||
         NavigationOrDecorationTypes.Contains(blockType) ||
         PassiveContainerTypes.Contains(blockType) ||
+        blockType == AddOnBlockType ||
         RichContentTypes.Contains(blockType);
 
     private static bool TryReadTextEvidence(DocumentBlockDto block, out TextEvidence evidence)

@@ -321,6 +321,50 @@ public sealed class FeishuApiClientTests
     }
 
     [Fact]
+    public async Task InspectDocumentAsync_TreatsPairedHeadingsCatalogsAndAddOnAsNavigationOnly()
+    {
+        using var client = ClientReturningBlocks("""
+            {"block_id":"page","block_type":1},
+            {"block_id":"inline","block_type":2,"text":{"elements":[{"mention_user":{"open_id":"ou_test"}}]}},
+            {"block_id":"heading-1","block_type":3,"heading1":{"elements":[{"text_run":{"content":"法律"}}]}},
+            {"block_id":"catalog-1","block_type":42,"wiki_catalog":{}},
+            {"block_id":"heading-2","block_type":3,"heading1":{"elements":[{"text_run":{"content":"行政法规"}}]}},
+            {"block_id":"catalog-2","block_type":42,"wiki_catalog":{}},
+            {"block_id":"heading-3","block_type":3,"heading1":{"elements":[{"text_run":{"content":"部门规章"}}]}},
+            {"block_id":"catalog-3","block_type":42,"wiki_catalog":{}},
+            {"block_id":"heading-4","block_type":3,"heading1":{"elements":[{"text_run":{"content":"地方性法规"}}]}},
+            {"block_id":"catalog-4","block_type":42,"wiki_catalog":{}},
+            {"block_id":"toc","block_type":40,"add_ons":{"component_id":"toc-component","component_type_id":"table-of-contents","record":""}}
+            """);
+
+        var inspection = await client.InspectDocumentAsync(Document("wiki-node", "doc-token"));
+
+        Assert.Equal(1, inspection.Content.MaxConsecutiveBodyBlocks);
+        Assert.Equal(0, inspection.Content.BodyCharacterCount);
+        Assert.True(inspection.Content.HasNavigationAddOnPattern);
+        Assert.False(inspection.Content.HasRichContent);
+        Assert.Empty(inspection.Content.UnknownBlockTypes);
+        Assert.Equal(new[] { "table-of-contents" }, inspection.Content.AddOnComponentTypeIds);
+        Assert.Equal(NavigationPageClassification.LikelyNavigation, inspection.Content.Classification);
+    }
+
+    [Fact]
+    public async Task InspectDocumentAsync_ClassifiesUnpairedAddOnAsUncertain()
+    {
+        using var client = ClientReturningBlocks("""
+            {"block_id":"page","block_type":1},
+            {"block_id":"widget","block_type":40,"add_ons":{"component_id":"business-component","component_type_id":"business-widget","record":""}}
+            """);
+
+        var inspection = await client.InspectDocumentAsync(Document("wiki-node", "doc-token"));
+
+        Assert.False(inspection.Content.HasNavigationAddOnPattern);
+        Assert.Equal(new[] { 40 }, inspection.Content.UnknownBlockTypes);
+        Assert.Equal(new[] { "business-widget" }, inspection.Content.AddOnComponentTypeIds);
+        Assert.Equal(NavigationPageClassification.Uncertain, inspection.Content.Classification);
+    }
+
+    [Fact]
     public async Task InspectDocumentAsync_DoesNotLetUnknownContainerChildrenForceSubstantiveClassification()
     {
         using var client = ClientReturningBlocks("""

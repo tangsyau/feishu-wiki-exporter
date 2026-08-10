@@ -7,6 +7,7 @@ use std::{
 };
 
 use tauri::State;
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 
 #[derive(Default)]
 struct KnowledgeState {
@@ -39,6 +40,14 @@ fn try_load_default_knowledge(state: State<'_, KnowledgeState>) -> Result<bool, 
 fn read_knowledge_text(relative_path: String, state: State<'_, KnowledgeState>) -> Result<String, String> {
     let path = resolve_knowledge_path(&relative_path, &state)?;
     fs::read_to_string(path).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn read_knowledge_asset(relative_path: String, state: State<'_, KnowledgeState>) -> Result<String, String> {
+    let path = resolve_knowledge_path(&relative_path, &state)?;
+    let bytes = fs::read(&path).map_err(|error| error.to_string())?;
+    let mime = detect_mime(&bytes, &path);
+    Ok(format!("data:{};base64,{}", mime, STANDARD.encode(bytes)))
 }
 
 #[tauri::command]
@@ -75,6 +84,18 @@ fn resolve_knowledge_path(relative_path: &str, state: &State<'_, KnowledgeState>
     Ok(candidate)
 }
 
+fn detect_mime(bytes: &[u8], path: &Path) -> &'static str {
+    if bytes.starts_with(&[0x89, b'P', b'N', b'G']) { return "image/png"; }
+    if bytes.starts_with(&[0xff, 0xd8, 0xff]) { return "image/jpeg"; }
+    if bytes.starts_with(b"GIF8") { return "image/gif"; }
+    if bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" { return "image/webp"; }
+    match path.extension().and_then(|value| value.to_str()).unwrap_or_default().to_ascii_lowercase().as_str() {
+        "svg" => "image/svg+xml",
+        "pdf" => "application/pdf",
+        _ => "application/octet-stream",
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -83,6 +104,7 @@ fn main() {
             set_knowledge_root,
             try_load_default_knowledge,
             read_knowledge_text,
+            read_knowledge_asset,
             open_original
         ])
         .run(tauri::generate_context!())

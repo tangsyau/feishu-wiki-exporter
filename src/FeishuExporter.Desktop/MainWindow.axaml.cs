@@ -3,6 +3,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using FeishuExporter.Core;
+using System.Diagnostics;
 
 namespace FeishuExporter.Desktop;
 
@@ -20,6 +21,8 @@ public partial class MainWindow : Window
     private bool _wikiSpaceListAvailable;
     private bool _manualWikiIdExpanded;
     private int _currentStep = 1;
+    private string? _lastOutputRoot;
+    private bool _exportCompleted;
 
     public MainWindow()
     {
@@ -29,6 +32,7 @@ public partial class MainWindow : Window
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
             "Feishu Backup");
         SetSourceType(cloudSource: false);
+        UpdateOutputModeVisibility();
         UpdateExportPreview();
         ShowStep(1);
     }
@@ -246,6 +250,7 @@ public partial class MainWindow : Window
         try
         {
             ValidateSourceSelection();
+            ResetCompletionState();
             SetRunning(true);
             LogBox.Text = string.Empty;
             ExportProgressBar.Value = 0;
@@ -254,6 +259,9 @@ public partial class MainWindow : Window
             var sourceType = _cloudSource ? ExportSourceType.CloudFolder : ExportSourceType.Wiki;
             var sourceId = ResolveSourceId();
             var outputPath = OutputPathBox.Text!;
+            var outputMode = GetOutputMode();
+            var includesReader = outputMode is ExportOutputMode.Reader or ExportOutputMode.ReaderAndOffice;
+            var includesOffice = outputMode is ExportOutputMode.Office or ExportOutputMode.ReaderAndOffice;
 
             var policy = GetTag(ExistingPolicyBox) switch
             {
@@ -267,14 +275,15 @@ public partial class MainWindow : Window
                 SourceType = sourceType,
                 SourceId = sourceId,
                 ExportRoot = Path.GetFullPath(outputPath),
+                OutputMode = outputMode,
                 DocumentFormat = GetTag(FormatBox) ?? "docx",
                 ExistingFilePolicy = policy,
                 EmbeddedAttachmentPlacement = GetTag(AttachmentPlacementBox) == "subfolder"
                     ? EmbeddedAttachmentPlacement.DocumentSubfolder
                     : EmbeddedAttachmentPlacement.AlongsideDocument,
-                TreatWikiParentsAsNavigationFolders = NavigationPagesBox.IsChecked == true,
+                TreatWikiParentsAsNavigationFolders = includesOffice && NavigationPagesBox.IsChecked == true,
                 SkipUnchanged = IncrementalBox.IsChecked == true,
-                DownloadAttachments = AttachmentsBox.IsChecked == true,
+                DownloadAttachments = includesOffice && AttachmentsBox.IsChecked == true,
                 MaxParallelism = int.Parse(GetTag(ParallelBox) ?? "2")
             };
 
@@ -288,7 +297,7 @@ public partial class MainWindow : Window
             }
 
             IReadOnlySet<string> navigationPagesToSkip = new HashSet<string>(StringComparer.Ordinal);
-            if (options.TreatWikiParentsAsNavigationFolders && preparation.NavigationCandidates.Count > 0)
+            if (includesOffice && options.TreatWikiParentsAsNavigationFolders && preparation.NavigationCandidates.Count > 0)
             {
                 var likelyCount = preparation.NavigationCandidates.Count(candidate =>
                     candidate.Classification == NavigationPageClassification.LikelyNavigation);
@@ -308,75 +317,77 @@ public partial class MainWindow : Window
                 navigationPagesToSkip = selected;
                 AppendLog($"导航页审核完成：将跳过 {selected.Count} 个 Office 文档，保留导出 {preparation.NavigationCandidates.Count - selected.Count} 个待审核文档。");
             }
-            else if (options.TreatWikiParentsAsNavigationFolders)
+            else if (includesOffice && options.TreatWikiParentsAsNavigationFolders)
             {
                 AppendLog("未发现符合规则的疑似导航页。所有文档将正常导出。");
             }
 
-            StartButton.Content = "正在导出……";
-            var summary = await engine.ExportPreparedAsync(
-                options,
-                preparation,
-                navigationPagesToSkip,
-                progress,
-                _exportCancellation.Token);
-
-            CountText.Text = $"成功 {summary.Succeeded}　跳过 {summary.Skipped}　不支持 {summary.Unsupported}　失败 {summary.Failed}";
-            ExportProgressBar.IsIndeterminate = false;
-            ExportProgressBar.Value = 100;
-            AppendLog($"导出目录：{summary.OutputDirectory}");
-            AppendLog("详细结果已写入 export-report.csv。");
-
-            var offlineKnowledgeFailed = false;
-            if (OfflineKnowledgeBox.IsChecked == true)
+            ExportSummary? officeSummary = null;
+            DirectOfflineKnowledgeBuildResult? readerSummary = null;
+            if (includesOffice)
             {
-                ProgressText.Text = "正在生成离线知识库……";
-                var offlineOutput = summary.OutputDirectory.TrimEnd(
-                    Path.DirectorySeparatorChar,
-                    Path.AltDirectorySeparatorChar) + "-offline";
-                var builder = new OfflineKnowledgeBuilder();
+                StartButton.Content = "正在导出 Office 文档……";
+                officeSummary = await engine.ExportPreparedAsync(
+                    options,
+                    preparation,
+                    navigationPagesToSkip,
+                    progress,
+                    _exportCancellation.Token);
+                AppendLog($"Office 目录：{officeSummary.OutputDirectory}");
+                AppendLog("Office 详细结果已写入 export-report.csv。");
+            }
+
+            if (includesReader)
+            {
+                ProgressText.Text = "正在生成 Reader 离线包……";
+                var builder = new DirectOfflineKnowledgeBuilder(client);
                 var offlineProgress = new Progress<OfflineKnowledgeProgress>(item =>
                 {
                     ProgressText.Text = item.Total > 0
-                        ? $"正在生成离线知识库：{item.Completed}/{item.Total}　{item.CurrentItem}"
-                        : "正在生成离线知识库……";
+                        ? $"正在生成 Reader 离线包：{item.Completed}/{item.Total}　{item.CurrentItem}"
+                        : "正在生成 Reader 离线包……";
                 });
-                try
-                {
-                    var offline = await builder.BuildAsync(
-                        summary.OutputDirectory,
-                        offlineOutput,
-                        offlineProgress,
-                        _exportCancellation.Token);
-                    AppendLog($"离线知识库：{offline.OutputDirectory}");
-                    AppendLog($"离线知识库已收录 {offline.TotalFiles} 个文件，其中 {offline.IndexedDocuments} 篇 DOCX 已建立全文索引；本次复用 {offline.ReusedPages} 篇未变化页面。");
-                }
-                catch (OperationCanceledException) when (_exportCancellation.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    offlineKnowledgeFailed = true;
-                    AppendLog("离线知识库生成失败：" + FormatException(ex));
-                }
+                readerSummary = await builder.BuildAsync(
+                    options,
+                    preparation,
+                    offlineProgress,
+                    _exportCancellation.Token);
+                AppendLog($"Reader 离线包：{readerSummary.OutputDirectory}");
+                AppendLog($"Reader 收录 {readerSummary.Pages} 个页面、{readerSummary.Attachments} 个附件；未支持块 {readerSummary.UnsupportedBlocks} 个，本次复用 {readerSummary.ReusedPages} 个页面。");
             }
 
-            ProgressText.Text = offlineKnowledgeFailed
-                ? "导出完成；离线知识库生成失败"
-                : "导出完成";
-            StartButton.Content = "再次导出";
+            var summaryParts = new List<string>();
+            if (readerSummary is not null)
+            {
+                summaryParts.Add($"Reader 页面 {readerSummary.Pages}");
+                summaryParts.Add($"附件 {readerSummary.Attachments}");
+                summaryParts.Add($"未支持块 {readerSummary.UnsupportedBlocks}");
+            }
+            if (officeSummary is not null)
+            {
+                summaryParts.Add($"Office 成功 {officeSummary.Succeeded}");
+                summaryParts.Add($"跳过 {officeSummary.Skipped}");
+                summaryParts.Add($"失败 {officeSummary.Failed}");
+            }
+            CountText.Text = string.Join("　", summaryParts);
+            ExportProgressBar.IsIndeterminate = false;
+            ExportProgressBar.Value = 100;
+            ProgressText.Text = "导出完成";
+            _lastOutputRoot = Path.GetFullPath(outputPath);
+            SetCompletedState();
         }
         catch (OperationCanceledException)
         {
             ProgressText.Text = "已取消；已完成的文件可以在下次继续";
             AppendLog("用户取消了导出。已完成项目的增量状态已保留。");
+            StartButton.IsVisible = true;
             StartButton.Content = "继续导出";
         }
         catch (Exception ex)
         {
             ProgressText.Text = "导出未完成";
             AppendLog("错误：" + FormatException(ex));
+            StartButton.IsVisible = true;
             StartButton.Content = "重新导出";
         }
         finally
@@ -392,6 +403,53 @@ public partial class MainWindow : Window
         CancelButton.IsEnabled = false;
         ProgressText.Text = "正在安全停止……";
         _exportCancellation?.Cancel();
+    }
+
+    private void OutputMode_Changed(object? sender, SelectionChangedEventArgs e)
+    {
+        if (FormatBox is null)
+        {
+            return;
+        }
+        UpdateOutputModeVisibility();
+        UpdateExportPreview();
+    }
+
+    private void ReturnToSettings_Click(object? sender, RoutedEventArgs e)
+    {
+        ResetCompletionState();
+        ProgressText.Text = "尚未开始";
+        CountText.Text = string.Empty;
+        ExportProgressBar.Value = 0;
+        LogBox.Text = string.Empty;
+    }
+
+    private void ShowSummary_Click(object? sender, RoutedEventArgs e)
+    {
+        LogExpander.IsExpanded = true;
+    }
+
+    private void OpenOutput_Click(object? sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_lastOutputRoot) || !Directory.Exists(_lastOutputRoot))
+        {
+            ProgressText.Text = "输出目录不存在或已被移动";
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = _lastOutputRoot,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            AppendLog("无法打开输出位置：" + FormatException(ex));
+            LogExpander.IsExpanded = true;
+        }
     }
 
     private FeishuApiClient CreateClient() => new(ReadCredentials());
@@ -443,7 +501,7 @@ public partial class MainWindow : Window
         SetSelectedClass(CloudSourceButton, cloudSource);
         SpaceBox.IsEnabled = !cloudSource;
         LoadSpacesButton.IsEnabled = !cloudSource;
-        NavigationPagesBox.IsEnabled = !cloudSource;
+        NavigationPagesBox.IsEnabled = !cloudSource && IncludesOfficeOutput();
         if (!cloudSource && !string.IsNullOrWhiteSpace(SourceIdBox.Text))
         {
             _manualWikiIdExpanded = true;
@@ -512,12 +570,72 @@ public partial class MainWindow : Window
 
     private void UpdateExportPreview()
     {
-        FormatPreviewText.Text = (GetTag(FormatBox) ?? "docx").ToUpperInvariant();
-        AttachmentsPreviewText.Text = AttachmentsBox.IsChecked == true ? "启用" : "关闭";
-        AttachmentsPreviewText.Foreground = AttachmentsBox.IsChecked == true ? SuccessBrush : MutedTextBrush;
-        PlacementPreviewText.Text = GetTag(AttachmentPlacementBox) == "subfolder"
-            ? "主文档同名子文件夹"
-            : "与文档相同目录";
+        FormatPreviewText.Text = GetOutputMode() switch
+        {
+            ExportOutputMode.Reader => "Reader 离线包",
+            ExportOutputMode.Office => $"Office {(GetTag(FormatBox) ?? "docx").ToUpperInvariant()}",
+            _ => $"Reader + {(GetTag(FormatBox) ?? "docx").ToUpperInvariant()}"
+        };
+        var includesOffice = IncludesOfficeOutput();
+        AttachmentsPreviewText.Text = includesOffice
+            ? AttachmentsBox.IsChecked == true ? "Office 附件启用" : "Office 附件关闭"
+            : "Reader 必要附件";
+        AttachmentsPreviewText.Foreground = SuccessBrush;
+        PlacementPreviewText.Text = includesOffice
+            ? GetTag(AttachmentPlacementBox) == "subfolder"
+                ? "主文档同名子文件夹"
+                : "与文档相同目录"
+            : "紧凑离线包";
+    }
+
+    private ExportOutputMode GetOutputMode() => GetTag(OutputModeBox) switch
+    {
+        "office" => ExportOutputMode.Office,
+        "both" => ExportOutputMode.ReaderAndOffice,
+        _ => ExportOutputMode.Reader
+    };
+
+    private bool IncludesOfficeOutput() =>
+        GetOutputMode() is ExportOutputMode.Office or ExportOutputMode.ReaderAndOffice;
+
+    private void UpdateOutputModeVisibility()
+    {
+        if (OutputModeBox is null || OfficeSettingsPanel is null)
+        {
+            return;
+        }
+        var mode = GetOutputMode();
+        var includesReader = mode is ExportOutputMode.Reader or ExportOutputMode.ReaderAndOffice;
+        var includesOffice = mode is ExportOutputMode.Office or ExportOutputMode.ReaderAndOffice;
+        ReaderModeNotice.IsVisible = includesReader;
+        OfficeSettingsPanel.IsVisible = includesOffice;
+        NavigationPagesBox.IsEnabled = includesOffice && !_cloudSource;
+    }
+
+    private void SetCompletedState()
+    {
+        _exportCompleted = true;
+        StartButton.IsVisible = false;
+        CancelButton.IsVisible = false;
+        SettingsBackButton.IsVisible = false;
+        OpenOutputButton.IsVisible = true;
+        SummaryButton.IsVisible = true;
+        ReturnSettingsButton.IsVisible = true;
+    }
+
+    private void ResetCompletionState()
+    {
+        _exportCompleted = false;
+        StartButton.IsVisible = true;
+        StartButton.Content = "开始导出";
+        CancelButton.IsVisible = true;
+        SettingsBackButton.IsVisible = true;
+        OpenOutputButton.IsVisible = false;
+        SummaryButton.IsVisible = false;
+        ReturnSettingsButton.IsVisible = false;
+        StepOneButton.IsEnabled = true;
+        StepTwoButton.IsEnabled = true;
+        StepThreeButton.IsEnabled = true;
     }
 
     private void UpdateSourceSummary()
@@ -621,9 +739,9 @@ public partial class MainWindow : Window
         TestButton.IsEnabled = !running;
         ConnectButton.IsEnabled = !running;
         LoadSpacesButton.IsEnabled = !running && !_cloudSource;
-        StepOneButton.IsEnabled = !running;
-        StepTwoButton.IsEnabled = !running;
-        StepThreeButton.IsEnabled = !running;
+        StepOneButton.IsEnabled = !running && !_exportCompleted;
+        StepTwoButton.IsEnabled = !running && !_exportCompleted;
+        StepThreeButton.IsEnabled = !running && !_exportCompleted;
         ExportProgressBar.IsIndeterminate = running;
         if (running)
         {

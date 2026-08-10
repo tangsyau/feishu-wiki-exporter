@@ -3,9 +3,15 @@ export interface KnowledgeDocument {
   title: string;
   kind: "docx" | "pdf" | "spreadsheet" | "image" | "file";
   relativePath: string;
-  originalPath: string;
+  originalPath: string | null;
   pagePath: string | null;
   breadcrumb: string;
+}
+
+export interface KnowledgeStatistics {
+  pages: number;
+  attachments: number;
+  unsupportedBlocks: number;
 }
 
 export interface KnowledgeManifest {
@@ -14,6 +20,7 @@ export interface KnowledgeManifest {
   name: string;
   generatedUtc: string;
   documents: KnowledgeDocument[];
+  statistics?: KnowledgeStatistics;
 }
 
 export interface KnowledgeTreeNode {
@@ -26,8 +33,43 @@ export interface KnowledgeTreeNode {
 
 export interface KnowledgePage {
   title: string;
-  html: string;
+  html?: string;
   text: string;
+  blocks?: KnowledgeBlock[];
+  unsupportedBlockCount?: number;
+}
+
+export interface KnowledgeInline {
+  text: string;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strike: boolean;
+  code: boolean;
+  url: string | null;
+  targetPageId: string | null;
+}
+
+export interface KnowledgeLink {
+  title: string;
+  targetPageId: string;
+  anchor?: string | null;
+}
+
+export interface KnowledgeBlock {
+  id: string;
+  type: string;
+  text?: string | null;
+  level?: number | null;
+  checked?: boolean | null;
+  language?: string | null;
+  assetPath?: string | null;
+  fileName?: string | null;
+  url?: string | null;
+  sourceType?: number | null;
+  inlines: KnowledgeInline[];
+  links: KnowledgeLink[];
+  children: KnowledgeBlock[];
 }
 
 export interface KnowledgeSearchIndex {

@@ -175,8 +175,8 @@
                 </Grid>
                 <Grid Grid.Row="1" ColumnDefinitions="*,*,*" ColumnSpacing="20">
                   <StackPanel Grid.Column="0" Spacing="4">
-                    <TextBlock Text="文档格式" Classes="muted" FontSize="12" />
-                    <TextBlock x:Name="FormatPreviewText" Text="DOCX" FontWeight="SemiBold" />
+                    <TextBlock Text="输出内容" Classes="muted" FontSize="12" />
+                    <TextBlock x:Name="FormatPreviewText" Text="Reader 离线包" FontWeight="SemiBold" />
                   </StackPanel>
                   <StackPanel Grid.Column="1" Spacing="4">
                     <TextBlock Text="下载附件" Classes="muted" FontSize="12" />
@@ -220,41 +220,61 @@
             </StackPanel>
 
             <Border Padding="18" BorderBrush="#DCE2EB" BorderThickness="1" CornerRadius="9">
-              <Grid ColumnDefinitions="120,*,120,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="12">
-                <TextBlock Grid.Row="0" Grid.Column="0" Text="文档格式" Classes="field-label" />
-                <ComboBox Grid.Row="0" Grid.Column="1" x:Name="FormatBox" SelectedIndex="0">
-                  <ComboBoxItem Content="DOCX" Tag="docx" />
-                  <ComboBoxItem Content="PDF" Tag="pdf" />
-                </ComboBox>
-                <TextBlock Grid.Row="0" Grid.Column="2" Text="文件已存在" Classes="field-label" />
-                <ComboBox Grid.Row="0" Grid.Column="3" x:Name="ExistingPolicyBox" SelectedIndex="1">
-                  <ComboBoxItem Content="跳过" Tag="skip" />
-                  <ComboBoxItem Content="覆盖" Tag="overwrite" />
-                  <ComboBoxItem Content="保留两个版本" Tag="keep-both" />
-                </ComboBox>
+              <StackPanel Spacing="14">
+                <Grid ColumnDefinitions="120,*" ColumnSpacing="12">
+                  <TextBlock Text="输出内容" Classes="field-label" />
+                  <ComboBox Grid.Column="1" x:Name="OutputModeBox" SelectedIndex="0"
+                            SelectionChanged="OutputMode_Changed">
+                    <ComboBoxItem Content="Reader 离线包（推荐）" Tag="reader" />
+                    <ComboBoxItem Content="Office 文档" Tag="office" />
+                    <ComboBoxItem Content="Reader 离线包 + Office 文档" Tag="both" />
+                  </ComboBox>
+                </Grid>
 
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="内嵌附件位置" Classes="field-label" />
-                <ComboBox Grid.Row="1" Grid.Column="1" x:Name="AttachmentPlacementBox" SelectedIndex="0">
-                  <ComboBoxItem Content="与主文档同一目录" Tag="alongside" />
-                  <ComboBoxItem Content="主文档同名子文件夹" Tag="subfolder" />
-                </ComboBox>
-                <TextBlock Grid.Row="1" Grid.Column="2" Text="并发任务数" Classes="field-label" />
-                <ComboBox Grid.Row="1" Grid.Column="3" x:Name="ParallelBox" SelectedIndex="1">
-                  <ComboBoxItem Content="1（最保守）" Tag="1" />
-                  <ComboBoxItem Content="2（推荐）" Tag="2" />
-                  <ComboBoxItem Content="3" Tag="3" />
-                  <ComboBoxItem Content="4" Tag="4" />
-                </ComboBox>
+                <Border x:Name="ReaderModeNotice" Padding="12,10" Background="#EFF6FF" CornerRadius="7">
+                  <TextBlock Text="Reader 离线包直接读取飞书页面结构，保留页面层级、换行、内部链接和全文搜索；不会重复生成正文 DOCX。"
+                             Foreground="#315A96" FontSize="12" TextWrapping="Wrap" />
+                </Border>
 
-                <TextBlock Grid.Row="2" Grid.Column="0" Text="其他选项" Classes="field-label" />
-                <StackPanel Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3" Spacing="9">
-                  <CheckBox x:Name="IncrementalBox" Content="跳过自上次成功导出后未修改的文档" IsChecked="True" />
-                  <CheckBox x:Name="AttachmentsBox" Content="下载附件（包括文档内嵌文件）" IsChecked="True" />
-                  <CheckBox x:Name="NavigationPagesBox" Content="识别疑似导航页，并在导出前确认跳过清单（推荐）" IsChecked="True"
-                            ToolTip.Tip="分析有子文档的页面；默认建议跳过无明显实际内容的页面，你可以在清单中逐项调整。" />
-                  <CheckBox x:Name="OfflineKnowledgeBox" Content="导出完成后生成离线知识库（实验功能）" IsChecked="True" />
-                </StackPanel>
-              </Grid>
+                <Grid x:Name="OfficeSettingsPanel" ColumnDefinitions="120,*,120,*"
+                      RowDefinitions="Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="12" IsVisible="False">
+                  <TextBlock Grid.Row="0" Grid.Column="0" Text="Office 格式" Classes="field-label" />
+                  <ComboBox Grid.Row="0" Grid.Column="1" x:Name="FormatBox" SelectedIndex="0">
+                    <ComboBoxItem Content="DOCX" Tag="docx" />
+                    <ComboBoxItem Content="PDF" Tag="pdf" />
+                  </ComboBox>
+                  <TextBlock Grid.Row="0" Grid.Column="2" Text="文件已存在" Classes="field-label" />
+                  <ComboBox Grid.Row="0" Grid.Column="3" x:Name="ExistingPolicyBox" SelectedIndex="1">
+                    <ComboBoxItem Content="跳过" Tag="skip" />
+                    <ComboBoxItem Content="覆盖" Tag="overwrite" />
+                    <ComboBoxItem Content="保留两个版本" Tag="keep-both" />
+                  </ComboBox>
+
+                  <TextBlock Grid.Row="1" Grid.Column="0" Text="内嵌附件位置" Classes="field-label" />
+                  <ComboBox Grid.Row="1" Grid.Column="1" x:Name="AttachmentPlacementBox" SelectedIndex="0">
+                    <ComboBoxItem Content="与主文档同一目录" Tag="alongside" />
+                    <ComboBoxItem Content="主文档同名子文件夹" Tag="subfolder" />
+                  </ComboBox>
+                  <CheckBox Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="2" x:Name="AttachmentsBox"
+                            Content="下载 Office 附件" IsChecked="True" VerticalAlignment="Center" />
+
+                  <CheckBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="3" x:Name="NavigationPagesBox"
+                            Content="识别疑似导航页，并在 Office 导出前确认跳过清单（推荐）" IsChecked="True"
+                            ToolTip.Tip="此判断只影响 Office 文件，不会删除 Reader 中的页面。" />
+                </Grid>
+
+                <Grid ColumnDefinitions="120,*,120,*" ColumnSpacing="12">
+                  <TextBlock Text="增量更新" Classes="field-label" />
+                  <CheckBox Grid.Column="1" x:Name="IncrementalBox" Content="跳过未修改内容" IsChecked="True" />
+                  <TextBlock Grid.Column="2" Text="并发任务数" Classes="field-label" />
+                  <ComboBox Grid.Column="3" x:Name="ParallelBox" SelectedIndex="1">
+                    <ComboBoxItem Content="1（最保守）" Tag="1" />
+                    <ComboBoxItem Content="2（推荐）" Tag="2" />
+                    <ComboBoxItem Content="3" Tag="3" />
+                    <ComboBoxItem Content="4" Tag="4" />
+                  </ComboBox>
+                </Grid>
+              </StackPanel>
             </Border>
 
             <Border Padding="16" BorderBrush="#DCE2EB" BorderThickness="1" CornerRadius="9" Background="#FBFCFE">
@@ -265,7 +285,7 @@
                 </Grid>
                 <ProgressBar x:Name="ExportProgressBar" Minimum="0" Maximum="100" Height="7" />
                 <TextBlock x:Name="ProgressText" Text="尚未开始" Classes="muted" TextWrapping="Wrap" />
-                <Expander Header="查看日志">
+                <Expander x:Name="LogExpander" Header="查看日志">
                   <TextBox x:Name="LogBox" Height="120" Margin="0,8,0,0" IsReadOnly="True" AcceptsReturn="True"
                            TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto"
                            PlaceholderText="开始导出后，这里将显示进度和错误信息。" />
@@ -276,11 +296,17 @@
         </ScrollViewer>
 
         <Border Grid.Row="2" BorderBrush="#E2E7EF" BorderThickness="0,1,0,0" Padding="30,14">
-          <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
-            <Button Grid.Column="0" Content="上一步" Classes="secondary" Click="BackToSource_Click" />
-            <Button Grid.Column="2" x:Name="CancelButton" Content="取消" Classes="secondary"
+          <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="10">
+            <Button Grid.Column="0" x:Name="SettingsBackButton" Content="上一步" Classes="secondary" Click="BackToSource_Click" />
+            <Button Grid.Column="1" x:Name="ReturnSettingsButton" Content="返回导出设置" Classes="subtle"
+                    Click="ReturnToSettings_Click" IsVisible="False" />
+            <Button Grid.Column="3" x:Name="SummaryButton" Content="查看导出摘要" Classes="secondary"
+                    Click="ShowSummary_Click" IsVisible="False" />
+            <Button Grid.Column="4" x:Name="CancelButton" Content="取消" Classes="secondary"
                     Click="CancelExport_Click" IsEnabled="False" />
-            <Button Grid.Column="3" x:Name="StartButton" Content="开始导出" Classes="primary"
+            <Button Grid.Column="5" x:Name="OpenOutputButton" Content="打开输出位置" Classes="primary"
+                    Click="OpenOutput_Click" IsVisible="False" />
+            <Button Grid.Column="5" x:Name="StartButton" Content="开始导出" Classes="primary"
                     Click="StartExport_Click" />
           </Grid>
         </Border>

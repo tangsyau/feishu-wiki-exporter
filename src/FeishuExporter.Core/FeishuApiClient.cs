@@ -209,7 +209,12 @@ public sealed class FeishuApiClient : IDisposable
                     [],
                     [999],
                     0,
-                    false));
+                    false,
+                    false,
+                    []))
+            {
+                Blocks = []
+            };
         }
 
         var result = new List<ExportItem>();
@@ -261,7 +266,10 @@ public sealed class FeishuApiClient : IDisposable
         }
         while (!string.IsNullOrWhiteSpace(pageToken));
 
-        return new DocumentInspection(result, DocumentContentAnalyzer.Analyze(blocks, childPageTitles));
+        return new DocumentInspection(result, DocumentContentAnalyzer.Analyze(blocks, childPageTitles))
+        {
+            Blocks = blocks
+        };
     }
 
     public async Task<string> CreateAndWaitForExportAsync(

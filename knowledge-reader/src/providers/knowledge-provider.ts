@@ -13,5 +13,6 @@ export interface KnowledgeProvider {
   loadTree(): Promise<KnowledgeTreeNode>;
   loadSearchIndex(): Promise<KnowledgeSearchIndex>;
   loadPage(relativePath: string): Promise<KnowledgePage>;
+  loadAssetData(relativePath: string): Promise<string>;
   openOriginal(relativePath: string): Promise<void>;
 }
