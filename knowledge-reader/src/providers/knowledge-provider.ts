@@ -9,6 +9,7 @@ export interface KnowledgeProvider {
   readonly mode: "tauri" | "http";
   chooseKnowledge(): Promise<boolean>;
   tryLoadDefault(): Promise<boolean>;
+  rememberKnowledge(): Promise<void>;
   loadManifest(): Promise<KnowledgeManifest>;
   loadTree(): Promise<KnowledgeTreeNode>;
   loadSearchIndex(): Promise<KnowledgeSearchIndex>;

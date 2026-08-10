@@ -24,6 +24,8 @@ export class HttpKnowledgeProvider implements KnowledgeProvider {
     }
   }
 
+  async rememberKnowledge(): Promise<void> {}
+
   loadManifest(): Promise<KnowledgeManifest> {
     return this.readJson<KnowledgeManifest>("manifest.json");
   }

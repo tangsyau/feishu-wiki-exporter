@@ -25,6 +25,16 @@ let searchIndex: KnowledgeSearchIndex | null = null;
 let documentsById = new Map<string, KnowledgeDocument>();
 let activeDocumentId: string | null = null;
 let searchSequence = 0;
+let treeNodeSequence = 0;
+const treeKeyByNode = new WeakMap<KnowledgeTreeNode, string>();
+
+interface TreePathEntry {
+  title: string;
+  documentId: string | null;
+  treeKey: string;
+}
+
+let treePathByDocumentId = new Map<string, TreePathEntry[]>();
 
 interface SearchReturnState {
   query: string;
@@ -115,6 +125,12 @@ contentElement.addEventListener("click", event => {
     return;
   }
 
+  const treeLocation = (event.target as HTMLElement).closest<HTMLButtonElement>("button[data-tree-node-key]");
+  if (treeLocation?.dataset.treeNodeKey) {
+    focusTreeNode(treeLocation.dataset.treeNodeKey);
+    return;
+  }
+
   const openOriginal = (event.target as HTMLElement).closest<HTMLButtonElement>("button[data-open-original]");
   if (openOriginal?.dataset.openOriginal) {
     void provider.openOriginal(openOriginal.dataset.openOriginal).catch(showError);
@@ -169,6 +185,8 @@ async function loadKnowledge(): Promise<void> {
       throw new Error("离线知识库格式不受当前阅读器支持。");
     }
     documentsById = new Map(manifest.documents.map(document => [document.id, document]));
+    activeDocumentId = null;
+    treePathByDocumentId = buildTreePaths(tree);
     renderTree();
     countElement.textContent = String(manifest.documents.length);
     metaElement.textContent = `${manifest.name} · ${formatGeneratedTime(manifest.generatedUtc)}`;
@@ -179,6 +197,8 @@ async function loadKnowledge(): Promise<void> {
     } else {
       showEmptyKnowledge();
     }
+    await provider.rememberKnowledge().catch(() => undefined);
+    openButton.textContent = "切换离线知识库";
   } finally {
     setBusy(false);
   }
@@ -187,6 +207,30 @@ async function loadKnowledge(): Promise<void> {
 function renderTree(): void {
   if (!tree) return;
   treeElement.replaceChildren(renderTreeNode(tree, 0, true));
+}
+
+function treeNodeKey(node: KnowledgeTreeNode): string {
+  const existing = treeKeyByNode.get(node);
+  if (existing) return existing;
+  const key = `tree-node-${++treeNodeSequence}`;
+  treeKeyByNode.set(node, key);
+  return key;
+}
+
+function buildTreePaths(root: KnowledgeTreeNode): Map<string, TreePathEntry[]> {
+  const result = new Map<string, TreePathEntry[]>();
+  const visit = (node: KnowledgeTreeNode, ancestors: TreePathEntry[]): void => {
+    const entry: TreePathEntry = {
+      title: node.title,
+      documentId: node.documentId,
+      treeKey: treeNodeKey(node)
+    };
+    const path = [...ancestors, entry];
+    if (node.documentId) result.set(node.documentId, path);
+    for (const child of node.children) visit(child, path);
+  };
+  visit(root, []);
+  return result;
 }
 
 function renderTreeNode(node: KnowledgeTreeNode, depth: number, expanded = false): HTMLElement {
@@ -199,6 +243,7 @@ function renderTreeNode(node: KnowledgeTreeNode, depth: number, expanded = false
     button.type = "button";
     button.className = `tree-document${node.documentId === activeDocumentId ? " active" : ""}`;
     button.dataset.documentId = node.documentId ?? "";
+    button.dataset.treeNodeKey = treeNodeKey(node);
     button.style.setProperty("--depth", String(depth));
     button.innerHTML = `<span class="file-dot ${escapeAttribute(node.kind ?? "file")}"></span><span>${escapeHtml(node.title)}</span>`;
     return button;
@@ -206,6 +251,7 @@ function renderTreeNode(node: KnowledgeTreeNode, depth: number, expanded = false
 
   const details = document.createElement("details");
   details.className = "tree-folder";
+  details.dataset.treeNodeKey = treeNodeKey(node);
   details.open = expanded || depth < 1;
   const summary = document.createElement("summary");
   summary.style.setProperty("--depth", String(depth));
@@ -222,6 +268,7 @@ function renderTreeNode(node: KnowledgeTreeNode, depth: number, expanded = false
 function renderPageTreeNode(node: KnowledgeTreeNode, depth: number, expanded = false): HTMLElement {
   const container = document.createElement("div");
   container.className = "tree-page";
+  container.dataset.treeNodeKey = treeNodeKey(node);
 
   const row = document.createElement("div");
   row.className = "tree-page-row";
@@ -231,7 +278,6 @@ function renderPageTreeNode(node: KnowledgeTreeNode, depth: number, expanded = f
   const children = document.createElement("div");
   children.className = "tree-page-children";
   const hasChildren = node.children.length > 0;
-  let isExpanded = hasChildren && expanded;
 
   const toggle = document.createElement("button");
   toggle.type = "button";
@@ -241,12 +287,12 @@ function renderPageTreeNode(node: KnowledgeTreeNode, depth: number, expanded = f
   row.append(toggle);
 
   const setExpanded = (next: boolean): void => {
-    isExpanded = hasChildren && next;
+    const isExpanded = hasChildren && next;
     children.hidden = !isExpanded;
     toggle.setAttribute("aria-expanded", String(isExpanded));
     toggle.textContent = hasChildren ? (isExpanded ? "▾" : "▸") : "";
   };
-  toggle.addEventListener("click", () => setExpanded(!isExpanded));
+  toggle.addEventListener("click", () => setExpanded(children.hidden));
 
   const title = document.createElement("button");
   title.type = "button";
@@ -254,7 +300,7 @@ function renderPageTreeNode(node: KnowledgeTreeNode, depth: number, expanded = f
   if (node.documentId) {
     title.dataset.documentId = node.documentId;
   } else if (hasChildren) {
-    title.addEventListener("click", () => setExpanded(!isExpanded));
+    title.addEventListener("click", () => setExpanded(children.hidden));
   } else {
     title.disabled = true;
   }
@@ -267,7 +313,7 @@ function renderPageTreeNode(node: KnowledgeTreeNode, depth: number, expanded = f
     children.append(renderTreeNode(child, depth + 1));
   }
   container.append(children);
-  setExpanded(isExpanded);
+  setExpanded(hasChildren && expanded);
   return container;
 }
 
@@ -317,7 +363,52 @@ function updateTreeSelection(id: string): void {
     .forEach(button => button.classList.remove("active"));
   const activeButton = [...treeElement.querySelectorAll<HTMLButtonElement>("button[data-document-id]")]
     .find(button => button.dataset.documentId === id);
-  activeButton?.classList.add("active");
+  if (!activeButton) return;
+  activeButton.classList.add("active");
+  expandTreeAncestors(activeButton);
+  window.requestAnimationFrame(() => activeButton.scrollIntoView({ block: "nearest" }));
+}
+
+function expandTreeAncestors(element: HTMLElement): void {
+  for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+    if (ancestor.classList.contains("tree-page-children")) {
+      ancestor.hidden = false;
+      const page = ancestor.parentElement;
+      const toggle = page?.firstElementChild?.querySelector<HTMLButtonElement>(".tree-page-toggle");
+      if (toggle && !toggle.disabled) {
+        toggle.textContent = "▾";
+        toggle.setAttribute("aria-expanded", "true");
+      }
+    }
+    if (ancestor.matches("details.tree-folder")) {
+      (ancestor as HTMLDetailsElement).open = true;
+    }
+  }
+}
+
+function focusTreeNode(treeKey: string): void {
+  const target = [...treeElement.querySelectorAll<HTMLElement>("[data-tree-node-key]")]
+    .find(element => element.dataset.treeNodeKey === treeKey);
+  if (!target) return;
+  expandTreeAncestors(target);
+  if (target.matches("details.tree-folder")) {
+    (target as HTMLDetailsElement).open = true;
+  }
+  if (target.classList.contains("tree-page")) {
+    const children = target.querySelector<HTMLElement>(":scope > .tree-page-children");
+    const toggle = target.querySelector<HTMLButtonElement>(":scope > .tree-page-row > .tree-page-toggle");
+    if (children && toggle && !toggle.disabled) {
+      children.hidden = false;
+      toggle.textContent = "▾";
+      toggle.setAttribute("aria-expanded", "true");
+    }
+  }
+  const visibleTarget = target.matches("details.tree-folder")
+    ? target.querySelector<HTMLElement>(":scope > summary") ?? target
+    : target.querySelector<HTMLElement>(":scope > .tree-page-row > .tree-page-title") ?? target;
+  visibleTarget.classList.add("tree-located");
+  visibleTarget.scrollIntoView({ block: "nearest" });
+  window.setTimeout(() => visibleTarget.classList.remove("tree-located"), 900);
 }
 
 async function runSearch(): Promise<void> {
@@ -376,12 +467,30 @@ function articleHeader(document: KnowledgeDocument, returnToSearchQuery?: string
           </button>
           <span class="search-return-query" title="${escapeAttribute(returnToSearchQuery)}">搜索：${escapeHtml(returnToSearchQuery)}</span>
         </div>` : ""}
-      <div class="breadcrumbs">${escapeHtml(document.breadcrumb || manifest?.name || "")}</div>
+      ${renderBreadcrumbs(document)}
       <div class="article-title-row">
         <h1>${escapeHtml(document.title)}</h1>
         ${document.originalPath ? `<button class="secondary-action" data-open-original="${escapeAttribute(document.originalPath)}">打开原文件</button>` : ""}
       </div>
     </div>`;
+}
+
+function renderBreadcrumbs(document: KnowledgeDocument): string {
+  const path = treePathByDocumentId.get(document.id);
+  if (!path?.length) {
+    return `<nav class="breadcrumbs" aria-label="当前位置"><span>${escapeHtml(document.breadcrumb || manifest?.name || "")}</span></nav>`;
+  }
+  const parts = path.map((entry, index) => {
+    const current = index === path.length - 1;
+    if (current) {
+      return `<span class="breadcrumb-current" aria-current="page">${escapeHtml(entry.title)}</span>`;
+    }
+    if (entry.documentId) {
+      return `<button type="button" data-page-id="${escapeAttribute(entry.documentId)}">${escapeHtml(entry.title)}</button>`;
+    }
+    return `<button type="button" data-tree-node-key="${escapeAttribute(entry.treeKey)}">${escapeHtml(entry.title)}</button>`;
+  });
+  return `<nav class="breadcrumbs" aria-label="当前位置">${parts.join('<span class="breadcrumb-separator" aria-hidden="true">/</span>')}</nav>`;
 }
 
 function renderKnowledgeBlock(block: KnowledgeBlock): string {
@@ -433,7 +542,9 @@ function renderKnowledgeBlock(block: KnowledgeBlock): string {
     case "container":
       return `<div class="block-container"${id}>${content}${children}</div>`;
     default:
-      return `<div class="unsupported-block"${id}><strong>暂不支持的内容块</strong><span>飞书块类型 ${block.sourceType ?? "未知"}</span>${content ? `<p>${content}</p>` : ""}${children}</div>`;
+      return content || children
+        ? `<div class="block-container recovered-unsupported"${id}>${content}${children}</div>`
+        : "";
   }
 }
 

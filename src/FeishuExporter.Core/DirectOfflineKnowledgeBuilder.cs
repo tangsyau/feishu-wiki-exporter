@@ -10,6 +10,7 @@ public sealed class DirectOfflineKnowledgeBuilder(FeishuApiClient apiClient)
 {
     private const string FormatName = "feishu-offline-knowledge";
     private const int FormatVersion = 3;
+    private const int BuildStateVersion = 2;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -72,6 +73,7 @@ public sealed class DirectOfflineKnowledgeBuilder(FeishuApiClient apiClient)
         var unsupportedCount = 0;
         var reusedPages = 0;
         var unsupportedBlocks = new List<ReaderUnsupportedBlock>();
+        var subPageResolutionIssues = new List<ReaderPageSubPageResolutionIssue>();
 
         try
         {
@@ -96,6 +98,7 @@ public sealed class DirectOfflineKnowledgeBuilder(FeishuApiClient apiClient)
                     var cachedPagePath = Path.Combine(pageCache, id + ".json");
                     ReaderKnowledgePage page;
                     if (options.SkipUnchanged &&
+                        previousState.Version == BuildStateVersion &&
                         previousState.Items.TryGetValue(item.HierarchyToken, out var previous) &&
                         string.Equals(previous.ModifiedTime, modifiedTime, StringComparison.Ordinal) &&
                         string.Equals(previous.StructureSignature, structureSignature, StringComparison.Ordinal) &&
@@ -136,7 +139,8 @@ public sealed class DirectOfflineKnowledgeBuilder(FeishuApiClient apiClient)
                                 SourceType = -1
                             }],
                             string.Empty,
-                            1);
+                            1,
+                            []);
                     }
 
                     await WriteJsonAsync(Path.Combine(temporaryRoot, pagePath.Replace('/', Path.DirectorySeparatorChar)), page, cancellationToken);
@@ -144,6 +148,8 @@ public sealed class DirectOfflineKnowledgeBuilder(FeishuApiClient apiClient)
                     searchableText = page.Text;
                     unsupportedCount += page.UnsupportedBlockCount;
                     CollectUnsupportedBlocks(page.Blocks, id, item.Title, unsupportedBlocks);
+                    subPageResolutionIssues.AddRange(page.SubPageResolutionIssues.Select(issue =>
+                        new ReaderPageSubPageResolutionIssue(id, item.Title, issue)));
                     pageCount++;
                     nextState.Items[item.HierarchyToken] = new ReaderBuildStateEntry(
                         modifiedTime,
@@ -200,7 +206,11 @@ public sealed class DirectOfflineKnowledgeBuilder(FeishuApiClient apiClient)
             await WriteJsonAsync(Path.Combine(temporaryRoot, "index", "search-index.json"), searchIndex, cancellationToken);
             await WriteJsonAsync(
                 Path.Combine(temporaryRoot, "diagnostics", "unsupported-blocks.json"),
-                new { version = 1, items = unsupportedBlocks },
+                new { version = 2, items = unsupportedBlocks },
+                cancellationToken);
+            await WriteJsonAsync(
+                Path.Combine(temporaryRoot, "diagnostics", "subpage-link-resolution.json"),
+                new { version = 1, items = subPageResolutionIssues },
                 cancellationToken);
             await File.WriteAllTextAsync(
                 Path.Combine(temporaryRoot, "README.txt"),
@@ -553,7 +563,14 @@ public sealed class DirectOfflineKnowledgeBuilder(FeishuApiClient apiClient)
         {
             if (block.Type == "unsupported")
             {
-                result.Add(new ReaderUnsupportedBlock(pageId, pageTitle, block.Id, block.SourceType));
+                result.Add(new ReaderUnsupportedBlock(
+                    pageId,
+                    pageTitle,
+                    block.Id,
+                    block.SourceType,
+                    block.ComponentTypeId,
+                    block.HasSourceRecord,
+                    !string.IsNullOrWhiteSpace(block.Text) || block.Children.Count > 0));
             }
             CollectUnsupportedBlocks(block.Children, pageId, pageTitle, result);
         }

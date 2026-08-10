@@ -28,6 +28,10 @@ export class TauriKnowledgeProvider implements KnowledgeProvider {
     return invoke<boolean>("try_load_default_knowledge");
   }
 
+  async rememberKnowledge(): Promise<void> {
+    await invoke("remember_knowledge_root");
+  }
+
   loadManifest(): Promise<KnowledgeManifest> {
     return this.readJson<KnowledgeManifest>("manifest.json");
   }

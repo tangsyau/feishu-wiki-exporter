@@ -9,7 +9,9 @@ internal sealed class FeishuBlockNormalizer(
     IReadOnlyDictionary<string, string> assetPathByBlockId,
     string currentPageId)
 {
-    private bool _subPagesEmitted;
+    private readonly List<ReaderSubPageResolutionIssue> _subPageResolutionIssues = [];
+    private readonly HashSet<string> _heuristicallyAssignedPageIds = new(StringComparer.Ordinal);
+    private int _subPageListCount;
 
     public ReaderKnowledgePage Normalize(string title, IReadOnlyList<DocumentBlockDto> blocks)
     {
@@ -19,25 +21,43 @@ internal sealed class FeishuBlockNormalizer(
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
         var page = blocks.FirstOrDefault(block => block.BlockType == 1);
         var roots = ResolveChildren(page, blocks, byId);
-        var normalized = roots.Select(block => NormalizeBlock(block, byId)).ToList();
+        _subPageListCount = blocks.Count(block => block.BlockType is 42 or 51);
+        var normalized = NormalizeBlocks(roots, byId);
         var headings = new List<ReaderLink>();
         CollectHeadings(normalized, headings);
         normalized = FillTableOfContents(normalized, headings);
         var unsupported = CountUnsupported(normalized);
         var text = BuildSearchText(normalized);
-        return new ReaderKnowledgePage(title, normalized, text, unsupported);
+        return new ReaderKnowledgePage(title, normalized, text, unsupported, _subPageResolutionIssues.ToArray());
+    }
+
+    private List<ReaderBlock> NormalizeBlocks(
+        IEnumerable<DocumentBlockDto> blocks,
+        IReadOnlyDictionary<string, DocumentBlockDto> byId)
+    {
+        var result = new List<ReaderBlock>();
+        string? precedingHeading = null;
+        foreach (var block in blocks)
+        {
+            var normalized = NormalizeBlock(block, byId, precedingHeading);
+            result.Add(normalized);
+            if (normalized.Type == "heading" && !string.IsNullOrWhiteSpace(normalized.Text))
+            {
+                precedingHeading = normalized.Text;
+            }
+        }
+        return result;
     }
 
     private ReaderBlock NormalizeBlock(
         DocumentBlockDto block,
-        IReadOnlyDictionary<string, DocumentBlockDto> byId)
+        IReadOnlyDictionary<string, DocumentBlockDto> byId,
+        string? precedingHeading)
     {
         var payload = FindPayload(block);
         var inlines = ExtractInlines(payload);
         var text = string.Concat(inlines.Select(inline => inline.Text));
-        var children = ResolveChildren(block, [], byId)
-            .Select(child => NormalizeBlock(child, byId))
-            .ToList();
+        var children = NormalizeBlocks(ResolveChildren(block, [], byId), byId);
 
         return block.BlockType switch
         {
@@ -71,9 +91,16 @@ internal sealed class FeishuBlockNormalizer(
             },
             31 => Basic(block, "table", text, inlines, children),
             32 => Basic(block, "tableCell", text, inlines, children),
+            33 => Basic(block, "container", text, inlines, children),
             34 => Basic(block, "quoteContainer", text, inlines, children),
             40 when IsTableOfContents(payload) => CreateTableOfContents(block),
-            42 or 51 => CreateSubPageList(block),
+            40 => Basic(block, "unsupported", text, inlines, children) with
+            {
+                SourceType = block.BlockType,
+                ComponentTypeId = GetString(payload, "component_type_id"),
+                HasSourceRecord = HasSourceRecord(payload)
+            },
+            42 or 51 => CreateSubPageList(block, children, precedingHeading),
             24 or 25 => Basic(block, "container", text, inlines, children),
             _ => Basic(block, "unsupported", text, inlines, children) with
             {
@@ -114,11 +141,18 @@ internal sealed class FeishuBlockNormalizer(
             Children = FillTableOfContents(block.Children, headings)
         }).ToList();
 
-    private ReaderBlock CreateSubPageList(DocumentBlockDto block)
+    private ReaderBlock CreateSubPageList(
+        DocumentBlockDto block,
+        IReadOnlyList<ReaderBlock> children,
+        string? precedingHeading)
     {
         var links = ExtractPageLinks(FindPayload(block));
         if (links.Count > 0)
         {
+            foreach (var link in links)
+            {
+                _heuristicallyAssignedPageIds.Add(link.TargetPageId);
+            }
             return new ReaderBlock
             {
                 Id = block.BlockId,
@@ -127,26 +161,124 @@ internal sealed class FeishuBlockNormalizer(
             };
         }
 
-        if (_subPagesEmitted)
+        var nestedTexts = new List<string>();
+        var nestedLinks = new List<ReaderLink>();
+        CollectNestedSubPageEvidence(children, nestedTexts, nestedLinks);
+        foreach (var nestedLink in nestedLinks)
         {
-            links = [];
+            AddDistinctLink(links, nestedLink);
+            _heuristicallyAssignedPageIds.Add(nestedLink.TargetPageId);
         }
-        else
+        foreach (var nestedText in nestedTexts)
         {
-            links = childPages
-                .OrderBy(item => item.SiblingOrder ?? int.MaxValue)
-                .ThenBy(item => item.Title, StringComparer.CurrentCulture)
-                .Where(item => pageIdByToken.ContainsKey(item.HierarchyToken))
-                .Select(item => new ReaderLink(item.Title, pageIdByToken[item.HierarchyToken]))
-                .ToList();
+            var match = FindUnassignedChildPage(nestedText);
+            if (match is not null)
+            {
+                AddChildPageLink(links, match);
+            }
         }
-        _subPagesEmitted = true;
+
+        if (links.Count == 0 && !string.IsNullOrWhiteSpace(precedingHeading))
+        {
+            var headingMatch = FindUnassignedChildPage(precedingHeading);
+            if (headingMatch is not null)
+            {
+                AddChildPageLink(links, headingMatch);
+            }
+        }
+
+        if (links.Count == 0 && _subPageListCount == 1)
+        {
+            foreach (var child in OrderedChildPages())
+            {
+                AddChildPageLink(links, child);
+            }
+        }
+
+        if (links.Count == 0 && _subPageListCount > 1)
+        {
+            _subPageResolutionIssues.Add(new ReaderSubPageResolutionIssue(
+                block.BlockId,
+                precedingHeading,
+                nestedTexts.Distinct(StringComparer.CurrentCulture).ToArray(),
+                OrderedChildPages().Select(item => item.Title).ToArray(),
+                "多个子页面列表中无法可靠确定此列表对应的页面，未生成推测性链接。"));
+        }
+
         return new ReaderBlock
         {
             Id = block.BlockId,
             Type = "subpages",
             Links = links
         };
+    }
+
+    private IReadOnlyList<ExportItem> OrderedChildPages() => childPages
+        .OrderBy(item => item.SiblingOrder ?? int.MaxValue)
+        .ThenBy(item => item.Title, StringComparer.CurrentCulture)
+        .ToList();
+
+    private ExportItem? FindUnassignedChildPage(string title)
+    {
+        var comparable = NormalizeComparableTitle(title);
+        if (comparable.Length == 0)
+        {
+            return null;
+        }
+        return OrderedChildPages().FirstOrDefault(item =>
+            pageIdByToken.TryGetValue(item.HierarchyToken, out var pageId) &&
+            !_heuristicallyAssignedPageIds.Contains(pageId) &&
+            string.Equals(NormalizeComparableTitle(item.Title), comparable, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void AddChildPageLink(ICollection<ReaderLink> links, ExportItem item)
+    {
+        if (!pageIdByToken.TryGetValue(item.HierarchyToken, out var pageId))
+        {
+            return;
+        }
+        AddDistinctLink(links, new ReaderLink(item.Title, pageId));
+        _heuristicallyAssignedPageIds.Add(pageId);
+    }
+
+    private static void AddDistinctLink(ICollection<ReaderLink> links, ReaderLink link)
+    {
+        if (!links.Any(existing => string.Equals(existing.TargetPageId, link.TargetPageId, StringComparison.Ordinal)))
+        {
+            links.Add(link);
+        }
+    }
+
+    private static void CollectNestedSubPageEvidence(
+        IEnumerable<ReaderBlock> blocks,
+        ICollection<string> texts,
+        ICollection<ReaderLink> links)
+    {
+        foreach (var block in blocks)
+        {
+            if (!string.IsNullOrWhiteSpace(block.Text))
+            {
+                texts.Add(block.Text);
+            }
+            foreach (var inline in block.Inlines)
+            {
+                if (!string.IsNullOrWhiteSpace(inline.TargetPageId))
+                {
+                    AddDistinctLink(links, new ReaderLink(inline.Text, inline.TargetPageId));
+                }
+            }
+            foreach (var link in block.Links)
+            {
+                AddDistinctLink(links, link);
+            }
+            CollectNestedSubPageEvidence(block.Children, texts, links);
+        }
+    }
+
+    private static string NormalizeComparableTitle(string value)
+    {
+        var normalized = value.Normalize(NormalizationForm.FormKC);
+        return string.Concat(normalized.Where(character => !char.IsWhiteSpace(character))).Trim();
     }
 
     private List<ReaderLink> ExtractPageLinks(JsonElement? payload)
@@ -310,6 +442,7 @@ internal sealed class FeishuBlockNormalizer(
             17 => "todo",
             19 => "callout",
             27 => "image",
+            33 => "view",
             40 => "add_ons",
             42 => "wiki_catalog",
             51 => "sub_page_list",
@@ -361,6 +494,21 @@ internal sealed class FeishuBlockNormalizer(
         var component = GetString(payload, "component_type_id") ?? string.Empty;
         return component.Contains("toc", StringComparison.OrdinalIgnoreCase) ||
                component.Contains("table-of-contents", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasSourceRecord(JsonElement? payload)
+    {
+        if (payload is null || payload.Value.ValueKind != JsonValueKind.Object ||
+            !payload.Value.TryGetProperty("record", out var record))
+        {
+            return false;
+        }
+        return record.ValueKind switch
+        {
+            JsonValueKind.Null or JsonValueKind.Undefined => false,
+            JsonValueKind.String => !string.IsNullOrWhiteSpace(record.GetString()),
+            _ => true
+        };
     }
 
     private static int CountUnsupported(IEnumerable<ReaderBlock> blocks) =>
