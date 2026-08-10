@@ -41,7 +41,9 @@ public sealed class FeishuBlockNormalizerTests
         Assert.Contains("法律", page.Text);
         Assert.Contains(Environment.NewLine, page.Text);
         Assert.Contains("行政法规", page.Text);
-        var links = Assert.Single(page.Blocks.Where(block => block.Type == "subpages" && block.Links.Count > 0)).Links;
+        var links = Assert.Single(
+            page.Blocks,
+            block => block.Type == "subpages" && block.Links.Count > 0).Links;
         Assert.Equal(new[] { "page-a", "page-b" }, links.Select(link => link.TargetPageId).ToArray());
     }
 
