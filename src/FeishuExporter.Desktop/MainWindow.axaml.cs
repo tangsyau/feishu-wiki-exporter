@@ -290,8 +290,11 @@ public partial class MainWindow : Window
             IReadOnlySet<string> navigationPagesToSkip = new HashSet<string>(StringComparer.Ordinal);
             if (options.TreatWikiParentsAsNavigationFolders && preparation.NavigationCandidates.Count > 0)
             {
+                var likelyCount = preparation.NavigationCandidates.Count(candidate =>
+                    candidate.Classification == NavigationPageClassification.LikelyNavigation);
+                var uncertainCount = preparation.NavigationCandidates.Count - likelyCount;
                 StartButton.Content = "等待确认……";
-                ProgressText.Text = $"发现 {preparation.NavigationCandidates.Count} 个疑似导航页，请确认跳过清单";
+                ProgressText.Text = $"发现疑似导航页 {likelyCount} 个、待确认 {uncertainCount} 个，请审核跳过清单";
                 var reviewWindow = new NavigationReviewWindow(preparation.NavigationCandidates);
                 var selected = await reviewWindow.ShowDialog<IReadOnlySet<string>?>(this);
                 if (selected is null)
@@ -303,7 +306,7 @@ public partial class MainWindow : Window
                 }
 
                 navigationPagesToSkip = selected;
-                AppendLog($"导航页审核完成：将跳过 {selected.Count} 个文档，保留导出 {preparation.NavigationCandidates.Count - selected.Count} 个文档。");
+                AppendLog($"导航页审核完成：将跳过 {selected.Count} 个 Office 文档，保留导出 {preparation.NavigationCandidates.Count - selected.Count} 个待审核文档。");
             }
             else if (options.TreatWikiParentsAsNavigationFolders)
             {

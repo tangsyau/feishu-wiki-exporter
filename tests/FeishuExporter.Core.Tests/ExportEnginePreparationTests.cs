@@ -72,6 +72,10 @@ public sealed class ExportEnginePreparationTests
         var candidate = Assert.Single(preparation.NavigationCandidates);
         Assert.Equal("parent", candidate.HierarchyToken);
         Assert.Equal("公务用车", candidate.HierarchyPath);
+        Assert.Equal(NavigationPageClassification.LikelyNavigation, candidate.Classification);
+        Assert.True(candidate.DefaultSkip);
+        Assert.Equal(NavigationPageClassification.LikelyNavigation,
+            Assert.Single(preparation.NavigationAnalyses).Classification);
         Assert.Empty(preparation.Warnings);
     }
 

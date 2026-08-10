@@ -32,6 +32,13 @@ public enum ExportItemStatus
     Failed
 }
 
+public enum NavigationPageClassification
+{
+    LikelyNavigation,
+    Uncertain,
+    Substantive
+}
+
 public sealed record FeishuCredentials(string AppId, string AppSecret);
 
 public sealed record ExportOptions
@@ -105,9 +112,27 @@ public sealed record NavigationPageCandidate(
     string HierarchyToken,
     string Title,
     string HierarchyPath,
+    NavigationPageClassification Classification,
+    bool DefaultSkip,
     int MaxConsecutiveBodyBlocks,
     int BodyCharacterCount,
     string Reason);
+
+public sealed record NavigationPageAnalysis(
+    string HierarchyToken,
+    string Title,
+    string HierarchyPath,
+    NavigationPageClassification Classification,
+    bool DefaultSkip,
+    int MaxConsecutiveBodyBlocks,
+    int BodyCharacterCount,
+    IReadOnlyDictionary<int, int> BlockTypeCounts,
+    IReadOnlyList<int> RichBlockTypes,
+    IReadOnlyList<int> UnknownBlockTypes,
+    int IgnoredNestedBlockCount,
+    bool HasNavigationLikeTable,
+    string Reason,
+    string? Error);
 
 public sealed class ExportPreparation
 {
@@ -116,18 +141,21 @@ public sealed class ExportPreparation
         List<ExportItem> items,
         List<ExportFailure> failures,
         List<string> warnings,
-        List<NavigationPageCandidate> navigationCandidates)
+        List<NavigationPageCandidate> navigationCandidates,
+        List<NavigationPageAnalysis> navigationAnalyses)
     {
         SourceName = sourceName;
         Items = items;
         Failures = failures;
         Warnings = warnings;
         NavigationCandidates = navigationCandidates;
+        NavigationAnalyses = navigationAnalyses;
     }
 
     public string SourceName { get; }
     public IReadOnlyList<string> Warnings { get; }
     public IReadOnlyList<NavigationPageCandidate> NavigationCandidates { get; }
+    public IReadOnlyList<NavigationPageAnalysis> NavigationAnalyses { get; }
     internal List<ExportItem> Items { get; }
     internal List<ExportFailure> Failures { get; }
 }
@@ -135,14 +163,26 @@ public sealed class ExportPreparation
 public sealed record DocumentContentAnalysis(
     int MaxConsecutiveBodyBlocks,
     int BodyCharacterCount,
-    bool HasRichContent,
-    bool HasUnknownBlock)
+    IReadOnlyDictionary<int, int> BlockTypeCounts,
+    IReadOnlyList<int> RichBlockTypes,
+    IReadOnlyList<int> UnknownBlockTypes,
+    int IgnoredNestedBlockCount,
+    bool HasNavigationLikeTable)
 {
-    public bool HasSubstantiveContent =>
+    public bool HasRichContent => RichBlockTypes.Count > 0;
+    public bool HasUnknownBlock => UnknownBlockTypes.Count > 0;
+
+    public NavigationPageClassification Classification =>
         MaxConsecutiveBodyBlocks >= 3 ||
         BodyCharacterCount >= 100 ||
-        HasRichContent ||
-        HasUnknownBlock;
+        HasRichContent
+            ? NavigationPageClassification.Substantive
+            : HasUnknownBlock || HasNavigationLikeTable
+                ? NavigationPageClassification.Uncertain
+                : NavigationPageClassification.LikelyNavigation;
+
+    public bool HasSubstantiveContent =>
+        Classification == NavigationPageClassification.Substantive;
 }
 
 public sealed record DocumentInspection(
@@ -198,6 +238,12 @@ internal sealed class DocumentBlockDto
 
     [JsonPropertyName("block_type")]
     public int BlockType { get; init; }
+
+    [JsonPropertyName("parent_id")]
+    public string? ParentId { get; init; }
+
+    [JsonPropertyName("children")]
+    public List<string>? Children { get; init; }
 
     [JsonPropertyName("file")]
     public DocumentFileBlockDto? File { get; init; }

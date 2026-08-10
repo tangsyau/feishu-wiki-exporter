@@ -195,13 +195,21 @@ public sealed class FeishuApiClient : IDisposable
 
     public async Task<DocumentInspection> InspectDocumentAsync(
         ExportItem document,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlySet<string>? childPageTitles = null)
     {
         if (!string.Equals(document.Type, "docx", StringComparison.OrdinalIgnoreCase))
         {
             return new DocumentInspection(
                 [],
-                new DocumentContentAnalysis(0, 0, false, true));
+                new DocumentContentAnalysis(
+                    0,
+                    0,
+                    new Dictionary<int, int>(),
+                    [],
+                    [999],
+                    0,
+                    false));
         }
 
         var result = new List<ExportItem>();
@@ -253,7 +261,7 @@ public sealed class FeishuApiClient : IDisposable
         }
         while (!string.IsNullOrWhiteSpace(pageToken));
 
-        return new DocumentInspection(result, DocumentContentAnalyzer.Analyze(blocks));
+        return new DocumentInspection(result, DocumentContentAnalyzer.Analyze(blocks, childPageTitles));
     }
 
     public async Task<string> CreateAndWaitForExportAsync(

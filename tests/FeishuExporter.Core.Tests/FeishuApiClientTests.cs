@@ -214,6 +214,25 @@ public sealed class FeishuApiClientTests
     }
 
     [Fact]
+    public async Task InspectDocumentAsync_IgnoresTextDescendantsOfSubPageLists()
+    {
+        using var client = ClientReturningBlocks("""
+            {"block_id":"page","block_type":1,"children":["subpages"]},
+            {"block_id":"subpages","block_type":51,"parent_id":"page","children":["text-1","text-2","text-3"]},
+            {"block_id":"text-1","block_type":2,"parent_id":"subpages","text":{"elements":[{"text_run":{"content":"法律"}}]}},
+            {"block_id":"text-2","block_type":2,"parent_id":"subpages","text":{"elements":[{"text_run":{"content":"行政法规"}}]}},
+            {"block_id":"text-3","block_type":2,"parent_id":"subpages","text":{"elements":[{"text_run":{"content":"部门规章"}}]}}
+            """);
+
+        var inspection = await client.InspectDocumentAsync(Document("wiki-node", "doc-token"));
+
+        Assert.Equal(0, inspection.Content.MaxConsecutiveBodyBlocks);
+        Assert.Equal(0, inspection.Content.BodyCharacterCount);
+        Assert.Equal(3, inspection.Content.IgnoredNestedBlockCount);
+        Assert.Equal(NavigationPageClassification.LikelyNavigation, inspection.Content.Classification);
+    }
+
+    [Fact]
     public async Task InspectDocumentAsync_KeepsTwoParagraphsWhenTheirCombinedTextReachesThreshold()
     {
         var first = new string('甲', 60);
@@ -252,7 +271,71 @@ public sealed class FeishuApiClientTests
         Assert.True(rich.Content.HasRichContent);
         Assert.True(rich.Content.HasSubstantiveContent);
         Assert.True(unknown.Content.HasUnknownBlock);
-        Assert.True(unknown.Content.HasSubstantiveContent);
+        Assert.False(unknown.Content.HasSubstantiveContent);
+        Assert.Equal(NavigationPageClassification.Uncertain, unknown.Content.Classification);
+    }
+
+    [Fact]
+    public async Task InspectDocumentAsync_DoesNotCountTableCellTextAsConsecutiveBodyBlocks()
+    {
+        using var client = ClientReturningBlocks("""
+            {"block_id":"page","block_type":1,"children":["table"]},
+            {"block_id":"table","block_type":31,"parent_id":"page","children":["cell-1","cell-2","cell-3"]},
+            {"block_id":"cell-1","block_type":32,"parent_id":"table","children":["text-1"]},
+            {"block_id":"text-1","block_type":2,"parent_id":"cell-1","text":{"elements":[{"text_run":{"content":"第一行"}}]}},
+            {"block_id":"cell-2","block_type":32,"parent_id":"table","children":["text-2"]},
+            {"block_id":"text-2","block_type":2,"parent_id":"cell-2","text":{"elements":[{"text_run":{"content":"第二行"}}]}},
+            {"block_id":"cell-3","block_type":32,"parent_id":"table","children":["text-3"]},
+            {"block_id":"text-3","block_type":2,"parent_id":"cell-3","text":{"elements":[{"text_run":{"content":"第三行"}}]}}
+            """);
+
+        var inspection = await client.InspectDocumentAsync(Document("wiki-node", "doc-token"));
+
+        Assert.Equal(0, inspection.Content.MaxConsecutiveBodyBlocks);
+        Assert.Equal(0, inspection.Content.BodyCharacterCount);
+        Assert.True(inspection.Content.HasRichContent);
+        Assert.Equal(NavigationPageClassification.Substantive, inspection.Content.Classification);
+        Assert.Equal(6, inspection.Content.IgnoredNestedBlockCount);
+    }
+
+    [Fact]
+    public async Task InspectDocumentAsync_ClassifiesLinkOnlyTableMatchingHeadingsAsUncertain()
+    {
+        using var client = ClientReturningBlocks("""
+            {"block_id":"page","block_type":1,"children":["heading-1","heading-2","table"]},
+            {"block_id":"heading-1","block_type":3,"parent_id":"page","heading1":{"elements":[{"text_run":{"content":"法律"}}]}},
+            {"block_id":"heading-2","block_type":3,"parent_id":"page","heading1":{"elements":[{"text_run":{"content":"行政法规"}}]}},
+            {"block_id":"table","block_type":31,"parent_id":"page","children":["cell-1","cell-2"]},
+            {"block_id":"cell-1","block_type":32,"parent_id":"table","children":["text-1"]},
+            {"block_id":"text-1","block_type":2,"parent_id":"cell-1","text":{"elements":[{"text_run":{"content":"法律","text_element_style":{"link":{"url":"https://example.test/law"}}}}]}},
+            {"block_id":"cell-2","block_type":32,"parent_id":"table","children":["text-2"]},
+            {"block_id":"text-2","block_type":2,"parent_id":"cell-2","text":{"elements":[{"text_run":{"content":"行政法规","text_element_style":{"link":{"url":"https://example.test/rules"}}}}]}}
+            """);
+
+        var inspection = await client.InspectDocumentAsync(Document("wiki-node", "doc-token"));
+
+        Assert.True(inspection.Content.HasNavigationLikeTable);
+        Assert.False(inspection.Content.HasRichContent);
+        Assert.Equal(0, inspection.Content.BodyCharacterCount);
+        Assert.Equal(NavigationPageClassification.Uncertain, inspection.Content.Classification);
+    }
+
+    [Fact]
+    public async Task InspectDocumentAsync_DoesNotLetUnknownContainerChildrenForceSubstantiveClassification()
+    {
+        using var client = ClientReturningBlocks("""
+            {"block_id":"page","block_type":1,"children":["future"]},
+            {"block_id":"future","block_type":777,"parent_id":"page","children":["text-1","text-2","text-3"]},
+            {"block_id":"text-1","block_type":2,"parent_id":"future","text":{"elements":[{"text_run":{"content":"第一段"}}]}},
+            {"block_id":"text-2","block_type":2,"parent_id":"future","text":{"elements":[{"text_run":{"content":"第二段"}}]}},
+            {"block_id":"text-3","block_type":2,"parent_id":"future","text":{"elements":[{"text_run":{"content":"第三段"}}]}}
+            """);
+
+        var inspection = await client.InspectDocumentAsync(Document("wiki-node", "doc-token"));
+
+        Assert.Equal(0, inspection.Content.MaxConsecutiveBodyBlocks);
+        Assert.Equal(new[] { 777 }, inspection.Content.UnknownBlockTypes);
+        Assert.Equal(NavigationPageClassification.Uncertain, inspection.Content.Classification);
     }
 
     private static FeishuApiClient ClientReturningBlocks(string blocks)

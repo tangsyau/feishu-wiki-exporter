@@ -14,6 +14,7 @@ public sealed class ExportEngine(FeishuApiClient apiClient)
         var preparation = await PrepareAsync(options, progress, cancellationToken);
         var navigationPagesToSkip = options.TreatWikiParentsAsNavigationFolders
             ? preparation.NavigationCandidates
+                .Where(candidate => candidate.DefaultSkip)
                 .Select(candidate => candidate.HierarchyToken)
                 .ToHashSet(StringComparer.Ordinal)
             : new HashSet<string>(StringComparer.Ordinal);
@@ -52,6 +53,11 @@ public sealed class ExportEngine(FeishuApiClient apiClient)
         }
         var sourceDirectory = Path.Combine(options.ExportRoot, PathPlanner.SanitizeSegment(sourceName));
         Directory.CreateDirectory(sourceDirectory);
+
+        await NavigationAnalysisStore.SaveAsync(
+            sourceDirectory,
+            preparation.NavigationAnalyses,
+            cancellationToken);
 
         var planned = PathPlanner.Plan(
             items,
@@ -248,6 +254,7 @@ public sealed class ExportEngine(FeishuApiClient apiClient)
         var failures = new List<ExportFailure>();
         var warnings = new List<string>();
         var navigationCandidates = new List<NavigationPageCandidate>();
+        var navigationAnalyses = new List<NavigationPageAnalysis>();
 
         var wikiParentTokens = options.SourceType == ExportSourceType.Wiki &&
                                options.TreatWikiParentsAsNavigationFolders
@@ -286,28 +293,94 @@ public sealed class ExportEngine(FeishuApiClient apiClient)
 
             try
             {
-                var inspection = await apiClient.InspectDocumentAsync(document, cancellationToken);
+                var childPageTitles = items
+                    .Where(item =>
+                        string.Equals(item.ParentHierarchyToken, document.HierarchyToken, StringComparison.Ordinal) &&
+                        !string.Equals(item.Type, "embedded_file", StringComparison.OrdinalIgnoreCase))
+                    .Select(item => item.Title)
+                    .ToHashSet(StringComparer.Ordinal);
+                var inspection = await apiClient.InspectDocumentAsync(
+                    document,
+                    cancellationToken,
+                    childPageTitles);
                 if (options.DownloadAttachments)
                 {
                     items.AddRange(inspection.EmbeddedFiles);
                     embeddedCount += inspection.EmbeddedFiles.Count;
                 }
 
-                if (navigationCandidateTokens.Contains(document.HierarchyToken) &&
-                    !inspection.Content.HasSubstantiveContent)
+                if (navigationCandidateTokens.Contains(document.HierarchyToken))
                 {
-                    navigationCandidates.Add(new NavigationPageCandidate(
+                    var hierarchyPath = BuildHierarchyPath(document, items);
+                    var reason = CreateNavigationReason(inspection.Content);
+                    var defaultSkip = inspection.Content.Classification ==
+                                      NavigationPageClassification.LikelyNavigation;
+                    navigationAnalyses.Add(new NavigationPageAnalysis(
                         document.HierarchyToken,
                         document.Title,
-                        BuildHierarchyPath(document, items),
+                        hierarchyPath,
+                        inspection.Content.Classification,
+                        defaultSkip,
                         inspection.Content.MaxConsecutiveBodyBlocks,
                         inspection.Content.BodyCharacterCount,
-                        CreateNavigationReason(inspection.Content)));
+                        inspection.Content.BlockTypeCounts,
+                        inspection.Content.RichBlockTypes,
+                        inspection.Content.UnknownBlockTypes,
+                        inspection.Content.IgnoredNestedBlockCount,
+                        inspection.Content.HasNavigationLikeTable,
+                        reason,
+                        null));
+
+                    if (inspection.Content.Classification != NavigationPageClassification.Substantive)
+                    {
+                        navigationCandidates.Add(new NavigationPageCandidate(
+                            document.HierarchyToken,
+                            document.Title,
+                            hierarchyPath,
+                            inspection.Content.Classification,
+                            defaultSkip,
+                            inspection.Content.MaxConsecutiveBodyBlocks,
+                            inspection.Content.BodyCharacterCount,
+                            reason));
+                    }
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                warnings.Add($"{document.Title}：文档内容分析失败，已保留导出。{ex.Message}");
+                var isNavigationCandidate = navigationCandidateTokens.Contains(document.HierarchyToken);
+                if (isNavigationCandidate)
+                {
+                    var hierarchyPath = BuildHierarchyPath(document, items);
+                    const string reason = "文档内容分析失败，无法自动确认；默认保留导出";
+                    navigationCandidates.Add(new NavigationPageCandidate(
+                        document.HierarchyToken,
+                        document.Title,
+                        hierarchyPath,
+                        NavigationPageClassification.Uncertain,
+                        false,
+                        0,
+                        0,
+                        reason));
+                    navigationAnalyses.Add(new NavigationPageAnalysis(
+                        document.HierarchyToken,
+                        document.Title,
+                        hierarchyPath,
+                        NavigationPageClassification.Uncertain,
+                        false,
+                        0,
+                        0,
+                        new Dictionary<int, int>(),
+                        [],
+                        [],
+                        0,
+                        false,
+                        reason,
+                        ex.Message));
+                }
+
+                warnings.Add(isNavigationCandidate
+                    ? $"{document.Title}：文档内容分析失败，已默认保留并列入待确认项。{ex.Message}"
+                    : $"{document.Title}：文档内容或内嵌附件扫描失败。{ex.Message}");
                 if (options.DownloadAttachments)
                 {
                     var failure = new ExportFailure(
@@ -333,11 +406,45 @@ public sealed class ExportEngine(FeishuApiClient apiClient)
             items,
             failures,
             warnings,
-            navigationCandidates);
+            navigationCandidates,
+            navigationAnalyses);
     }
 
     private static string CreateNavigationReason(DocumentContentAnalysis analysis)
     {
+        if (analysis.Classification == NavigationPageClassification.Substantive)
+        {
+            var reasons = new List<string>();
+            if (analysis.MaxConsecutiveBodyBlocks >= 3)
+            {
+                reasons.Add($"连续正文 {analysis.MaxConsecutiveBodyBlocks} 块");
+            }
+            if (analysis.BodyCharacterCount >= 100)
+            {
+                reasons.Add($"正文约 {analysis.BodyCharacterCount} 字");
+            }
+            if (analysis.RichBlockTypes.Count > 0)
+            {
+                reasons.Add("包含富内容块 " + string.Join("、", analysis.RichBlockTypes));
+            }
+            return "判定为有实际内容：" + string.Join("；", reasons);
+        }
+
+        if (analysis.Classification == NavigationPageClassification.Uncertain)
+        {
+            var reasons = new List<string>();
+            if (analysis.HasNavigationLikeTable)
+            {
+                reasons.Add("发现内容均为链接且与标题或子页面对应的表格");
+            }
+            if (analysis.UnknownBlockTypes.Count > 0)
+            {
+                reasons.Add("发现尚未识别的块类型 " + string.Join("、", analysis.UnknownBlockTypes));
+            }
+            reasons.Add("默认保留，请人工确认");
+            return string.Join("；", reasons);
+        }
+
         if (analysis.MaxConsecutiveBodyBlocks == 0 && analysis.BodyCharacterCount == 0)
         {
             return "未发现非空正文、表格、图片或附件等实际内容";

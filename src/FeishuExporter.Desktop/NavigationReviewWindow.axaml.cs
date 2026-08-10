@@ -24,7 +24,11 @@ public partial class NavigationReviewWindow : Window
             item.PropertyChanged += ReviewItem_PropertyChanged;
         }
         CandidateList.ItemsSource = _items;
-        CandidateCountText.Text = $"程序发现 {_items.Count} 个疑似导航页，默认全部勾选。你可以在继续前逐项调整。";
+        var likelyCount = _items.Count(item =>
+            item.Classification == NavigationPageClassification.LikelyNavigation);
+        var uncertainCount = _items.Count - likelyCount;
+        CandidateCountText.Text =
+            $"高度疑似导航页 {likelyCount} 个，默认勾选；无法确定 {uncertainCount} 个，默认保留。你可以在继续前逐项调整。";
         UpdateSelectedCount();
     }
 
@@ -70,18 +74,33 @@ public partial class NavigationReviewWindow : Window
 
     private sealed class NavigationReviewItem : INotifyPropertyChanged
     {
-        private bool _skip = true;
+        private bool _skip;
 
         public NavigationReviewItem(NavigationPageCandidate candidate)
         {
             HierarchyToken = candidate.HierarchyToken;
             HierarchyPath = candidate.HierarchyPath;
             Reason = candidate.Reason;
+            Classification = candidate.Classification;
+            ClassificationLabel = candidate.Classification == NavigationPageClassification.LikelyNavigation
+                ? "高度疑似导航页"
+                : "无法确定";
+            BadgeBackground = candidate.Classification == NavigationPageClassification.LikelyNavigation
+                ? "#E8F4ED"
+                : "#FFF4DC";
+            BadgeForeground = candidate.Classification == NavigationPageClassification.LikelyNavigation
+                ? "#28734A"
+                : "#8A5A00";
+            _skip = candidate.DefaultSkip;
         }
 
         public string HierarchyToken { get; }
         public string HierarchyPath { get; }
         public string Reason { get; }
+        public NavigationPageClassification Classification { get; }
+        public string ClassificationLabel { get; }
+        public string BadgeBackground { get; }
+        public string BadgeForeground { get; }
 
         public bool Skip
         {

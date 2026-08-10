@@ -10,7 +10,7 @@
   <Grid RowDefinitions="Auto,*,Auto">
     <StackPanel Grid.Row="0" Margin="26,24,26,16" Spacing="7">
       <TextBlock Text="审核疑似导航页" Classes="page-title" />
-      <TextBlock Text="已勾选的文档将只保留为目录，不导出文档文件。取消勾选即可恢复导出。"
+      <TextBlock Text="已勾选的文档将只保留为目录，不导出 Office 文件。无法确定的项目默认不勾选。"
                  Classes="muted" FontSize="14" TextWrapping="Wrap" />
       <Border Margin="0,8,0,0" Padding="12,9" Background="#EEF4FF" CornerRadius="7">
         <TextBlock x:Name="CandidateCountText" Foreground="#2458A6" TextWrapping="Wrap" />
@@ -31,8 +31,15 @@
                 <Border Padding="10,9" BorderBrush="#EDF0F4" BorderThickness="0,0,0,1">
                   <CheckBox IsChecked="{Binding Skip}" HorizontalContentAlignment="Stretch">
                     <StackPanel Margin="7,0,0,0" Spacing="3">
-                      <TextBlock Text="{Binding HierarchyPath}" FontWeight="SemiBold"
-                                 Foreground="#243047" TextWrapping="Wrap" />
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBlock Text="{Binding HierarchyPath}" FontWeight="SemiBold"
+                                   Foreground="#243047" TextWrapping="Wrap" />
+                        <Border Grid.Column="1" Padding="7,2" CornerRadius="8"
+                                Background="{Binding BadgeBackground}">
+                          <TextBlock Text="{Binding ClassificationLabel}"
+                                     Foreground="{Binding BadgeForeground}" FontSize="11" />
+                        </Border>
+                      </Grid>
                       <TextBlock Text="{Binding Reason}" Classes="muted" FontSize="12"
                                  TextWrapping="Wrap" />
                     </StackPanel>
