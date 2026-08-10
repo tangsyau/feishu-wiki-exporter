@@ -235,11 +235,14 @@ internal static class DocumentContentAnalyzer
                 continue;
             }
 
-            var textEvidence = descendants
-                .Select(block => TryReadTextEvidence(block, out var evidence) ? evidence : null)
-                .Where(evidence => evidence is { HasContent: true })
-                .Cast<TextEvidence>()
-                .ToList();
+            var textEvidence = new List<TextEvidence>();
+            foreach (var descendant in descendants)
+            {
+                if (TryReadTextEvidence(descendant, out var evidence) && evidence.HasContent)
+                {
+                    textEvidence.Add(evidence);
+                }
+            }
             if (textEvidence.Count < 2 || textEvidence.Any(evidence => !evidence.HasLinkLikeElement))
             {
                 continue;
