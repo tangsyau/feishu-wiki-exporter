@@ -76,7 +76,10 @@ internal sealed class FeishuBlockNormalizer(
                 Level = block.BlockType - 2
             },
             12 => Basic(block, "bullet", text, inlines, children),
-            13 => Basic(block, "ordered", text, inlines, children),
+            13 => Basic(block, "ordered", text, inlines, children) with
+            {
+                Sequence = GetString(payload, "style", "sequence")
+            },
             14 => Basic(block, "code", text, inlines, children) with
             {
                 Language = GetString(payload, "style", "language") ?? GetString(payload, "language")

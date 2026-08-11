@@ -1,6 +1,7 @@
 import "./styles.css";
 import packageInfo from "../package.json";
 import { HttpKnowledgeProvider } from "./providers/http-provider";
+import { resolveOrderedListNumber } from "./ordered-list";
 import type { KnowledgeProvider } from "./providers/knowledge-provider";
 import { TauriKnowledgeProvider } from "./providers/tauri-provider";
 import { searchKnowledge } from "./search";
@@ -342,7 +343,7 @@ async function showDocument(id: string, returnToSearchQuery?: string, anchor?: s
     if (sequence !== searchSequence || activeDocumentId !== id) return;
     const article = documentElement("article", "article-body");
     article.innerHTML = page.blocks
-      ? page.blocks.map(renderKnowledgeBlock).join("")
+      ? renderKnowledgeBlocks(page.blocks)
       : sanitizeArticleHtml(page.html ?? "");
     contentElement.append(article);
     await hydrateImages(article);
@@ -493,10 +494,29 @@ function renderBreadcrumbs(document: KnowledgeDocument): string {
   return `<nav class="breadcrumbs" aria-label="当前位置">${parts.join('<span class="breadcrumb-separator" aria-hidden="true">/</span>')}</nav>`;
 }
 
-function renderKnowledgeBlock(block: KnowledgeBlock): string {
+function renderKnowledgeBlocks(blocks: KnowledgeBlock[]): string {
+  let lastOrderedNumber: number | null = null;
+  let previousWasOrdered = false;
+  return blocks.map(block => {
+    let orderedNumber: number | null = null;
+    if (block.type === "ordered") {
+      orderedNumber = resolveOrderedListNumber(block.sequence, {
+        lastNumber: lastOrderedNumber,
+        previousWasOrdered
+      });
+      lastOrderedNumber = orderedNumber;
+      previousWasOrdered = true;
+    } else {
+      previousWasOrdered = false;
+    }
+    return renderKnowledgeBlock(block, orderedNumber);
+  }).join("");
+}
+
+function renderKnowledgeBlock(block: KnowledgeBlock, orderedNumber: number | null): string {
   const id = ` id="${escapeAttribute(blockAnchor(block.id))}"`;
   const content = renderInlines(block.inlines, block.text ?? "");
-  const children = block.children?.map(renderKnowledgeBlock).join("") ?? "";
+  const children = block.children?.length ? renderKnowledgeBlocks(block.children) : "";
   switch (block.type) {
     case "paragraph":
       return `<p${id}>${content || "<br>"}</p>${children}`;
@@ -507,7 +527,7 @@ function renderKnowledgeBlock(block: KnowledgeBlock): string {
     case "bullet":
       return `<div class="block-list-item"${id}><span class="block-marker">•</span><div>${content}${children}</div></div>`;
     case "ordered":
-      return `<div class="block-list-item"${id}><span class="block-marker">1.</span><div>${content}${children}</div></div>`;
+      return `<div class="block-list-item"${id}><span class="block-marker">${orderedNumber ?? 1}.</span><div>${content}${children}</div></div>`;
     case "todo":
       return `<div class="block-list-item"${id}><span class="block-marker">${block.checked ? "☑" : "☐"}</span><div>${content}${children}</div></div>`;
     case "code":

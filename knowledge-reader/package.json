@@ -1,10 +1,11 @@
 {
   "name": "feishu-wiki-reader",
   "private": true,
-  "version": "0.2.4",
+  "version": "0.2.5",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 1420",
+    "test": "node --test --experimental-strip-types tests/*.test.ts",
     "build": "tsc --noEmit && vite build",
     "tauri": "tauri"
   },

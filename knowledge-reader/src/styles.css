@@ -255,7 +255,7 @@ button { color: inherit; }
 .article-body hr { margin: 26px 0; border: 0; border-top: 1px solid #e1e6ed; }
 .article-body figure { margin: 22px 0; }
 .article-body figcaption { margin-top: -8px; color: #8a95a6; font-size: 12px; text-align: center; }
-.block-list-item { display: grid; grid-template-columns: 24px minmax(0, 1fr); margin: 6px 0; }
+.block-list-item { display: grid; grid-template-columns: minmax(24px, max-content) minmax(0, 1fr); margin: 6px 0; }
 .block-marker { color: #60789d; text-align: center; }
 .block-list-item .block-list-item { margin-left: 10px; }
 .callout { display: block; margin: 18px 0; padding: 13px 15px; border: 1px solid #d9e5f6; border-radius: 8px; background: #f5f9ff; }

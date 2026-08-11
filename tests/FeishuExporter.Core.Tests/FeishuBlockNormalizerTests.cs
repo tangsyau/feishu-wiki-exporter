@@ -287,6 +287,32 @@ public sealed class FeishuBlockNormalizerTests
         Assert.Equal("target-page", inline.TargetPageId);
     }
 
+    [Fact]
+    public void Normalize_PreservesOrderedListSequence()
+    {
+        var page = new FeishuBlockNormalizer(
+            new Dictionary<string, string>(),
+            [],
+            new Dictionary<string, string>(),
+            "source-page").Normalize(
+                "有序列表",
+                [
+                    Block("page", 1),
+                    Ordered("ordered-1", "第一项", "1"),
+                    Ordered("ordered-2", "第二项", "auto"),
+                    Ordered("ordered-3", "手动第七项", "7"),
+                    Ordered("ordered-4", "历史数据", null)
+                ]);
+
+        Assert.Collection(
+            page.Blocks,
+            first => Assert.Equal("1", first.Sequence),
+            second => Assert.Equal("auto", second.Sequence),
+            third => Assert.Equal("7", third.Sequence),
+            fourth => Assert.Null(fourth.Sequence));
+        Assert.All(page.Blocks, block => Assert.Equal("ordered", block.Type));
+    }
+
     private static ExportItem Item(string hierarchyToken, string contentToken, string title, int order) => new()
     {
         HierarchyToken = hierarchyToken,
@@ -345,6 +371,28 @@ public sealed class FeishuBlockNormalizerTests
             Properties = new Dictionary<string, JsonElement>
             {
                 [property] = document.RootElement.Clone()
+            }
+        };
+    }
+
+    private static DocumentBlockDto Ordered(string id, string text, string? sequence)
+    {
+        var payload = new Dictionary<string, object>
+        {
+            ["elements"] = new[] { new { text_run = new { content = text } } }
+        };
+        if (sequence is not null)
+        {
+            payload["style"] = new { sequence };
+        }
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(payload));
+        return new DocumentBlockDto
+        {
+            BlockId = id,
+            BlockType = 13,
+            Properties = new Dictionary<string, JsonElement>
+            {
+                ["ordered"] = document.RootElement.Clone()
             }
         };
     }

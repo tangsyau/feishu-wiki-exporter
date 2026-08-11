@@ -63,6 +63,7 @@ export interface KnowledgeBlock {
   level?: number | null;
   checked?: boolean | null;
   language?: string | null;
+  sequence?: string | null;
   assetPath?: string | null;
   fileName?: string | null;
   url?: string | null;

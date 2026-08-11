@@ -10,7 +10,7 @@ public sealed class DirectOfflineKnowledgeBuilder(FeishuApiClient apiClient)
 {
     private const string FormatName = "feishu-offline-knowledge";
     private const int FormatVersion = 3;
-    private const int BuildStateVersion = 3;
+    private const int BuildStateVersion = 4;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

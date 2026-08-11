@@ -149,7 +149,7 @@ public sealed class DirectOfflineKnowledgeBuilderTests
                 "reader-state.json",
                 SearchOption.AllDirectories));
             using var state = JsonDocument.Parse(await File.ReadAllTextAsync(statePath));
-            Assert.Equal(3, state.RootElement.GetProperty("version").GetInt32());
+            Assert.Equal(4, state.RootElement.GetProperty("version").GetInt32());
 
             var b3 = Item("b-3", "doc-b-3", "category-b", "B3", 2);
             items.Add(b3);

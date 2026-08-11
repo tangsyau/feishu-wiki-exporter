@@ -46,6 +46,7 @@ internal sealed record ReaderBlock
     public int? Level { get; init; }
     public bool? Checked { get; init; }
     public string? Language { get; init; }
+    public string? Sequence { get; init; }
     public string? AssetPath { get; init; }
     public string? FileName { get; init; }
     public string? Url { get; init; }
@@ -112,7 +113,7 @@ internal sealed record ReaderPageSubPageResolution(
 
 internal sealed record ReaderBuildState
 {
-    public int Version { get; init; } = 3;
+    public int Version { get; init; } = 4;
     public Dictionary<string, ReaderBuildStateEntry> Items { get; init; } = new(StringComparer.Ordinal);
 }
 
