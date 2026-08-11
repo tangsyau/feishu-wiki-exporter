@@ -87,6 +87,104 @@ public sealed class FeishuBlockNormalizerTests
     }
 
     [Fact]
+    public void Normalize_UsesWikiTokenToRenderTargetNodeChildren()
+    {
+        var categoryB = Item("category-b", "doc-b", "B 类", 0);
+        var categoryC = Item("category-c", "doc-c", "C 类", 1);
+        var b1 = Item("b-1", "doc-b-1", "B1", 0) with { ParentHierarchyToken = "category-b" };
+        var b2 = Item("b-2", "doc-b-2", "B2", 1) with { ParentHierarchyToken = "category-b" };
+        var c1 = Item("c-1", "doc-c-1", "C1", 0) with { ParentHierarchyToken = "category-c" };
+        var pageIds = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["category-b"] = "page-b",
+            ["category-c"] = "page-c",
+            ["b-1"] = "page-b-1",
+            ["b-2"] = "page-b-2",
+            ["c-1"] = "page-c-1"
+        };
+        var hierarchy = new Dictionary<string, IReadOnlyList<ExportItem>>(StringComparer.Ordinal)
+        {
+            ["category-a"] = [categoryB, categoryC],
+            ["category-b"] = [b1, b2],
+            ["category-c"] = [c1]
+        };
+        var blocks = new[]
+        {
+            Block("page", 1),
+            Block("heading-b", 3, "heading1", "B 类"),
+            Catalog("catalog-b", 42, "wiki_catalog", "category-b"),
+            Block("heading-c", 3, "heading1", "C 类"),
+            Catalog("catalog-c", 51, "sub_page_list", "category-c")
+        };
+
+        var page = new FeishuBlockNormalizer(
+            pageIds,
+            [categoryB, categoryC],
+            new Dictionary<string, string>(),
+            "page-a",
+            hierarchy,
+            "category-a").Normalize("A 大类", blocks);
+
+        var lists = page.Blocks.Where(block => block.Type == "subpages").ToArray();
+        Assert.Collection(
+            lists,
+            first => Assert.Equal(
+                new[] { "page-b-1", "page-b-2" },
+                first.Links.Select(link => link.TargetPageId).ToArray()),
+            second => Assert.Equal(
+                new[] { "page-c-1" },
+                second.Links.Select(link => link.TargetPageId).ToArray()));
+        Assert.All(page.SubPageResolutions, resolution =>
+        {
+            Assert.True(resolution.Resolved);
+            Assert.Equal("wiki_token", resolution.Strategy);
+        });
+        Assert.Empty(page.SubPageResolutionIssues);
+    }
+
+    [Fact]
+    public void Normalize_HeadingFallbackRendersCategoryChildrenInsteadOfCategoryPage()
+    {
+        var category = Item("category-b", "doc-b", "B 类", 0);
+        var b1 = Item("b-1", "doc-b-1", "B1", 0) with { ParentHierarchyToken = "category-b" };
+        var b2 = Item("b-2", "doc-b-2", "B2", 1) with { ParentHierarchyToken = "category-b" };
+        var pageIds = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["category-b"] = "page-b",
+            ["b-1"] = "page-b-1",
+            ["b-2"] = "page-b-2"
+        };
+        var hierarchy = new Dictionary<string, IReadOnlyList<ExportItem>>(StringComparer.Ordinal)
+        {
+            ["category-a"] = [category],
+            ["category-b"] = [b1, b2]
+        };
+
+        var page = new FeishuBlockNormalizer(
+            pageIds,
+            [category],
+            new Dictionary<string, string>(),
+            "page-a",
+            hierarchy,
+            "category-a").Normalize(
+                "A 大类",
+                [
+                    Block("page", 1),
+                    Block("heading-b", 3, "heading1", "B 类"),
+                    Block("catalog-b", 42, "wiki_catalog"),
+                    Block("catalog-unresolved", 42, "wiki_catalog")
+                ]);
+
+        var first = Assert.Single(page.Blocks, block => block.Id == "catalog-b");
+        Assert.Equal(
+            new[] { "page-b-1", "page-b-2" },
+            first.Links.Select(link => link.TargetPageId).ToArray());
+        Assert.Equal(
+            "preceding_heading_target_children",
+            Assert.Single(page.SubPageResolutions, resolution => resolution.BlockId == "catalog-b").Strategy);
+    }
+
+    [Fact]
     public void Normalize_TreatsViewAsContainerAndRecordsUnknownAddOn()
     {
         using var addOn = JsonDocument.Parse("""
@@ -230,6 +328,24 @@ public sealed class FeishuBlockNormalizerTests
             ParentId = parentId,
             Children = children,
             Properties = properties
+        };
+    }
+
+    private static DocumentBlockDto Catalog(
+        string id,
+        int type,
+        string property,
+        string wikiToken)
+    {
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { wiki_token = wikiToken }));
+        return new DocumentBlockDto
+        {
+            BlockId = id,
+            BlockType = type,
+            Properties = new Dictionary<string, JsonElement>
+            {
+                [property] = document.RootElement.Clone()
+            }
         };
     }
 }

@@ -35,7 +35,8 @@ internal sealed record ReaderKnowledgePage(
     IReadOnlyList<ReaderBlock> Blocks,
     string Text,
     int UnsupportedBlockCount,
-    IReadOnlyList<ReaderSubPageResolutionIssue> SubPageResolutionIssues);
+    IReadOnlyList<ReaderSubPageResolutionIssue> SubPageResolutionIssues,
+    IReadOnlyList<ReaderSubPageResolution> SubPageResolutions);
 
 internal sealed record ReaderBlock
 {
@@ -88,14 +89,30 @@ internal sealed record ReaderSubPageResolutionIssue(
     IReadOnlyList<string> CandidateChildPages,
     string Reason);
 
+internal sealed record ReaderSubPageResolution(
+    string BlockId,
+    int BlockType,
+    string? PrecedingHeading,
+    string? WikiToken,
+    string? TargetHierarchyToken,
+    string Strategy,
+    IReadOnlyList<string> LinkTitles,
+    bool Resolved,
+    string Reason);
+
 internal sealed record ReaderPageSubPageResolutionIssue(
     string PageId,
     string PageTitle,
     ReaderSubPageResolutionIssue Issue);
 
+internal sealed record ReaderPageSubPageResolution(
+    string PageId,
+    string PageTitle,
+    ReaderSubPageResolution Resolution);
+
 internal sealed record ReaderBuildState
 {
-    public int Version { get; init; } = 2;
+    public int Version { get; init; } = 3;
     public Dictionary<string, ReaderBuildStateEntry> Items { get; init; } = new(StringComparer.Ordinal);
 }
 

@@ -10,7 +10,7 @@ public sealed class DirectOfflineKnowledgeBuilder(FeishuApiClient apiClient)
 {
     private const string FormatName = "feishu-offline-knowledge";
     private const int FormatVersion = 3;
-    private const int BuildStateVersion = 2;
+    private const int BuildStateVersion = 3;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -58,6 +58,7 @@ public sealed class DirectOfflineKnowledgeBuilder(FeishuApiClient apiClient)
                 .OrderBy(item => item.SiblingOrder ?? int.MaxValue)
                 .ThenBy(item => item.Title, StringComparer.CurrentCulture)
                 .ToList(), StringComparer.Ordinal);
+        var structureSignatures = CreateStructureSignatures(items, childrenByParent);
 
         Directory.CreateDirectory(Path.Combine(temporaryRoot, "pages"));
         Directory.CreateDirectory(Path.Combine(temporaryRoot, "index"));
@@ -74,6 +75,7 @@ public sealed class DirectOfflineKnowledgeBuilder(FeishuApiClient apiClient)
         var reusedPages = 0;
         var unsupportedBlocks = new List<ReaderUnsupportedBlock>();
         var subPageResolutionIssues = new List<ReaderPageSubPageResolutionIssue>();
+        var subPageResolutions = new List<ReaderPageSubPageResolution>();
 
         try
         {
@@ -93,7 +95,7 @@ public sealed class DirectOfflineKnowledgeBuilder(FeishuApiClient apiClient)
                 if (string.Equals(item.Type, "docx", StringComparison.OrdinalIgnoreCase))
                 {
                     pagePath = $"pages/{id}.json";
-                    var structureSignature = CreateStructureSignature(childrenByParent.GetValueOrDefault(item.HierarchyToken, []));
+                    var structureSignature = structureSignatures.GetValueOrDefault(item.HierarchyToken, string.Empty);
                     var modifiedTime = item.ModifiedTime ?? string.Empty;
                     var cachedPagePath = Path.Combine(pageCache, id + ".json");
                     ReaderKnowledgePage page;
@@ -123,7 +125,9 @@ public sealed class DirectOfflineKnowledgeBuilder(FeishuApiClient apiClient)
                             pageIdByAnyToken,
                             childrenByParent.GetValueOrDefault(item.HierarchyToken, []),
                             assetPaths.Paths,
-                            id);
+                            id,
+                            childrenByParent,
+                            item.HierarchyToken);
                         page = normalizer.Normalize(item.Title, inspection.Blocks);
                         ReplaceCachedAssets(temporaryRoot, assetCache, id);
                     }
@@ -140,6 +144,7 @@ public sealed class DirectOfflineKnowledgeBuilder(FeishuApiClient apiClient)
                             }],
                             string.Empty,
                             1,
+                            [],
                             []);
                     }
 
@@ -150,6 +155,8 @@ public sealed class DirectOfflineKnowledgeBuilder(FeishuApiClient apiClient)
                     CollectUnsupportedBlocks(page.Blocks, id, item.Title, unsupportedBlocks);
                     subPageResolutionIssues.AddRange(page.SubPageResolutionIssues.Select(issue =>
                         new ReaderPageSubPageResolutionIssue(id, item.Title, issue)));
+                    subPageResolutions.AddRange(page.SubPageResolutions.Select(resolution =>
+                        new ReaderPageSubPageResolution(id, item.Title, resolution)));
                     pageCount++;
                     nextState.Items[item.HierarchyToken] = new ReaderBuildStateEntry(
                         modifiedTime,
@@ -210,7 +217,12 @@ public sealed class DirectOfflineKnowledgeBuilder(FeishuApiClient apiClient)
                 cancellationToken);
             await WriteJsonAsync(
                 Path.Combine(temporaryRoot, "diagnostics", "subpage-link-resolution.json"),
-                new { version = 1, items = subPageResolutionIssues },
+                new
+                {
+                    version = 2,
+                    items = subPageResolutions,
+                    unresolved = subPageResolutionIssues
+                },
                 cancellationToken);
             await File.WriteAllTextAsync(
                 Path.Combine(temporaryRoot, "README.txt"),
@@ -419,11 +431,45 @@ public sealed class DirectOfflineKnowledgeBuilder(FeishuApiClient apiClient)
     private static string CreateStableId(string token) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))).ToLowerInvariant()[..20];
 
-    private static string CreateStructureSignature(IReadOnlyList<ExportItem> children)
+    private static IReadOnlyDictionary<string, string> CreateStructureSignatures(
+        IReadOnlyList<ExportItem> items,
+        IReadOnlyDictionary<string, IReadOnlyList<ExportItem>> childrenByParent)
     {
-        var value = string.Join("\n", children.Select(child =>
-            $"{child.HierarchyToken}\t{child.SiblingOrder}\t{child.Title}"));
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        var visiting = new HashSet<string>(StringComparer.Ordinal);
+
+        string Visit(string hierarchyToken)
+        {
+            if (result.TryGetValue(hierarchyToken, out var existing))
+            {
+                return existing;
+            }
+            if (!visiting.Add(hierarchyToken))
+            {
+                return "cycle:" + hierarchyToken;
+            }
+
+            var builder = new StringBuilder();
+            foreach (var child in childrenByParent.GetValueOrDefault(hierarchyToken, []))
+            {
+                builder.Append(child.HierarchyToken).Append('\t')
+                    .Append(child.SiblingOrder).Append('\t')
+                    .Append(child.Title).Append('\t')
+                    .Append(child.Type).Append('\t')
+                    .Append(Visit(child.HierarchyToken)).Append('\n');
+            }
+            visiting.Remove(hierarchyToken);
+            var signature = Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString()))).ToLowerInvariant();
+            result[hierarchyToken] = signature;
+            return signature;
+        }
+
+        foreach (var item in items)
+        {
+            Visit(item.HierarchyToken);
+        }
+        return result;
     }
 
     private static void AddToIndex(Dictionary<string, HashSet<string>> postings, string id, string text)

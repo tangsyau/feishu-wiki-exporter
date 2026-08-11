@@ -7,9 +7,12 @@ internal sealed class FeishuBlockNormalizer(
     IReadOnlyDictionary<string, string> pageIdByToken,
     IReadOnlyList<ExportItem> childPages,
     IReadOnlyDictionary<string, string> assetPathByBlockId,
-    string currentPageId)
+    string currentPageId,
+    IReadOnlyDictionary<string, IReadOnlyList<ExportItem>>? childrenByParent = null,
+    string? currentHierarchyToken = null)
 {
     private readonly List<ReaderSubPageResolutionIssue> _subPageResolutionIssues = [];
+    private readonly List<ReaderSubPageResolution> _subPageResolutions = [];
     private readonly HashSet<string> _heuristicallyAssignedPageIds = new(StringComparer.Ordinal);
     private int _subPageListCount;
 
@@ -28,7 +31,13 @@ internal sealed class FeishuBlockNormalizer(
         normalized = FillTableOfContents(normalized, headings);
         var unsupported = CountUnsupported(normalized);
         var text = BuildSearchText(normalized);
-        return new ReaderKnowledgePage(title, normalized, text, unsupported, _subPageResolutionIssues.ToArray());
+        return new ReaderKnowledgePage(
+            title,
+            normalized,
+            text,
+            unsupported,
+            _subPageResolutionIssues.ToArray(),
+            _subPageResolutions.ToArray());
     }
 
     private List<ReaderBlock> NormalizeBlocks(
@@ -146,19 +155,46 @@ internal sealed class FeishuBlockNormalizer(
         IReadOnlyList<ReaderBlock> children,
         string? precedingHeading)
     {
-        var links = ExtractPageLinks(FindPayload(block));
+        var payload = FindPayload(block);
+        var wikiToken = GetString(payload, "wiki_token");
+        var links = new List<ReaderLink>();
+
+        if (!string.IsNullOrWhiteSpace(wikiToken) &&
+            TryResolveCatalogTarget(wikiToken, out var targetHierarchyToken, out var targetChildren))
+        {
+            foreach (var child in targetChildren)
+            {
+                AddChildPageLink(links, child);
+            }
+            return CompleteSubPageList(
+                block,
+                precedingHeading,
+                wikiToken,
+                targetHierarchyToken,
+                "wiki_token",
+                links,
+                true,
+                links.Count > 0
+                    ? "已根据目录块的 wiki_token 还原目标节点的直接子页面。"
+                    : "目录块的 wiki_token 已定位目标节点，但该节点没有可导出的直接子页面。");
+        }
+
+        links.AddRange(ExtractPageLinks(payload));
         if (links.Count > 0)
         {
             foreach (var link in links)
             {
                 _heuristicallyAssignedPageIds.Add(link.TargetPageId);
             }
-            return new ReaderBlock
-            {
-                Id = block.BlockId,
-                Type = "subpages",
-                Links = links
-            };
+            return CompleteSubPageList(
+                block,
+                precedingHeading,
+                wikiToken,
+                null,
+                "embedded_page_links",
+                links,
+                true,
+                "已使用目录块中可直接识别的页面链接。");
         }
 
         var nestedTexts = new List<string>();
@@ -171,11 +207,24 @@ internal sealed class FeishuBlockNormalizer(
         }
         foreach (var nestedText in nestedTexts)
         {
-            var match = FindUnassignedChildPage(nestedText);
+            var match = FindUnassignedDescendantPage(nestedText);
             if (match is not null)
             {
                 AddChildPageLink(links, match);
             }
+        }
+
+        if (links.Count > 0)
+        {
+            return CompleteSubPageList(
+                block,
+                precedingHeading,
+                wikiToken,
+                null,
+                "nested_page_evidence",
+                links,
+                true,
+                "已根据目录块的嵌套链接或标题还原子页面。");
         }
 
         if (links.Count == 0 && !string.IsNullOrWhiteSpace(precedingHeading))
@@ -183,7 +232,39 @@ internal sealed class FeishuBlockNormalizer(
             var headingMatch = FindUnassignedChildPage(precedingHeading);
             if (headingMatch is not null)
             {
+                MarkPageAssigned(headingMatch);
+                var headingChildren = OrderedChildrenOf(headingMatch.HierarchyToken);
+                if (headingChildren.Count > 0)
+                {
+                    foreach (var child in headingChildren)
+                    {
+                        AddChildPageLink(links, child);
+                    }
+                    return CompleteSubPageList(
+                        block,
+                        precedingHeading,
+                        wikiToken,
+                        headingMatch.HierarchyToken,
+                        string.IsNullOrWhiteSpace(wikiToken)
+                            ? "preceding_heading_target_children"
+                            : "unresolved_wiki_token_then_heading_target_children",
+                        links,
+                        true,
+                        "目录块未提供可用目标，已由前置标题定位分类节点并还原其直接子页面。");
+                }
+
                 AddChildPageLink(links, headingMatch);
+                return CompleteSubPageList(
+                    block,
+                    precedingHeading,
+                    wikiToken,
+                    headingMatch.HierarchyToken,
+                    string.IsNullOrWhiteSpace(wikiToken)
+                        ? "preceding_heading_page"
+                        : "unresolved_wiki_token_then_heading_page",
+                    links,
+                    true,
+                    "目录块未提供可用目标，已由前置标题匹配到一个没有子页面的页面。");
             }
         }
 
@@ -193,6 +274,15 @@ internal sealed class FeishuBlockNormalizer(
             {
                 AddChildPageLink(links, child);
             }
+            return CompleteSubPageList(
+                block,
+                precedingHeading,
+                wikiToken,
+                currentHierarchyToken,
+                "single_list_current_children",
+                links,
+                true,
+                "页面只有一个子页面目录，已使用当前页面的直接子节点。");
         }
 
         if (links.Count == 0 && _subPageListCount > 1)
@@ -202,9 +292,44 @@ internal sealed class FeishuBlockNormalizer(
                 precedingHeading,
                 nestedTexts.Distinct(StringComparer.CurrentCulture).ToArray(),
                 OrderedChildPages().Select(item => item.Title).ToArray(),
-                "多个子页面列表中无法可靠确定此列表对应的页面，未生成推测性链接。"));
+                string.IsNullOrWhiteSpace(wikiToken)
+                    ? "多个子页面列表中无法可靠确定此列表对应的页面，未生成推测性链接。"
+                    : $"目录块的 wiki_token（{wikiToken}）无法映射到知识库层级，且其他证据不足，未生成推测性链接。"));
         }
 
+        return CompleteSubPageList(
+            block,
+            precedingHeading,
+            wikiToken,
+            null,
+            "unresolved",
+            links,
+            false,
+            string.IsNullOrWhiteSpace(wikiToken)
+                ? "无法可靠确定目录块对应的页面。"
+                : $"wiki_token（{wikiToken}）无法映射到知识库层级。");
+    }
+
+    private ReaderBlock CompleteSubPageList(
+        DocumentBlockDto block,
+        string? precedingHeading,
+        string? wikiToken,
+        string? targetHierarchyToken,
+        string strategy,
+        IReadOnlyList<ReaderLink> links,
+        bool resolved,
+        string reason)
+    {
+        _subPageResolutions.Add(new ReaderSubPageResolution(
+            block.BlockId,
+            block.BlockType,
+            precedingHeading,
+            wikiToken,
+            targetHierarchyToken,
+            strategy,
+            links.Select(link => link.Title).ToArray(),
+            resolved,
+            reason));
         return new ReaderBlock
         {
             Id = block.BlockId,
@@ -213,22 +338,98 @@ internal sealed class FeishuBlockNormalizer(
         };
     }
 
+    private bool TryResolveCatalogTarget(
+        string wikiToken,
+        out string targetHierarchyToken,
+        out IReadOnlyList<ExportItem> targetChildren)
+    {
+        var target = FindPageByAnyToken(wikiToken);
+        targetHierarchyToken = target?.HierarchyToken ?? wikiToken;
+        if (string.Equals(wikiToken, currentHierarchyToken, StringComparison.Ordinal) ||
+            string.Equals(targetHierarchyToken, currentHierarchyToken, StringComparison.Ordinal))
+        {
+            targetChildren = OrderedChildPages();
+            return true;
+        }
+
+        if (target is not null || childrenByParent?.ContainsKey(targetHierarchyToken) == true)
+        {
+            targetChildren = OrderedChildrenOf(targetHierarchyToken);
+            return true;
+        }
+
+        targetHierarchyToken = string.Empty;
+        targetChildren = [];
+        return false;
+    }
+
+    private ExportItem? FindPageByAnyToken(string token)
+    {
+        IEnumerable<ExportItem> candidates = childrenByParent is null
+            ? childPages
+            : childrenByParent.Values.SelectMany(items => items);
+        return candidates.FirstOrDefault(item =>
+            string.Equals(item.HierarchyToken, token, StringComparison.Ordinal) ||
+            string.Equals(item.ContentToken, token, StringComparison.Ordinal));
+    }
+
+    private IReadOnlyList<ExportItem> OrderedChildrenOf(string hierarchyToken)
+    {
+        if (childrenByParent is null || !childrenByParent.TryGetValue(hierarchyToken, out var children))
+        {
+            return [];
+        }
+        return children
+            .Where(item => !string.Equals(item.Type, "embedded_file", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(item => item.SiblingOrder ?? int.MaxValue)
+            .ThenBy(item => item.Title, StringComparer.CurrentCulture)
+            .ToList();
+    }
+
     private IReadOnlyList<ExportItem> OrderedChildPages() => childPages
         .OrderBy(item => item.SiblingOrder ?? int.MaxValue)
         .ThenBy(item => item.Title, StringComparer.CurrentCulture)
         .ToList();
 
     private ExportItem? FindUnassignedChildPage(string title)
+        => FindUnassignedPage(title, OrderedChildPages());
+
+    private ExportItem? FindUnassignedDescendantPage(string title)
+        => FindUnassignedPage(title, OrderedDescendantPages());
+
+    private ExportItem? FindUnassignedPage(string title, IEnumerable<ExportItem> candidates)
     {
         var comparable = NormalizeComparableTitle(title);
         if (comparable.Length == 0)
         {
             return null;
         }
-        return OrderedChildPages().FirstOrDefault(item =>
+        return candidates.FirstOrDefault(item =>
             pageIdByToken.TryGetValue(item.HierarchyToken, out var pageId) &&
             !_heuristicallyAssignedPageIds.Contains(pageId) &&
             string.Equals(NormalizeComparableTitle(item.Title), comparable, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private IReadOnlyList<ExportItem> OrderedDescendantPages()
+    {
+        var result = new List<ExportItem>();
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        void Add(IEnumerable<ExportItem> items)
+        {
+            foreach (var item in items
+                         .OrderBy(value => value.SiblingOrder ?? int.MaxValue)
+                         .ThenBy(value => value.Title, StringComparer.CurrentCulture))
+            {
+                if (!visited.Add(item.HierarchyToken))
+                {
+                    continue;
+                }
+                result.Add(item);
+                Add(OrderedChildrenOf(item.HierarchyToken));
+            }
+        }
+        Add(OrderedChildPages());
+        return result;
     }
 
     private void AddChildPageLink(ICollection<ReaderLink> links, ExportItem item)
@@ -239,6 +440,14 @@ internal sealed class FeishuBlockNormalizer(
         }
         AddDistinctLink(links, new ReaderLink(item.Title, pageId));
         _heuristicallyAssignedPageIds.Add(pageId);
+    }
+
+    private void MarkPageAssigned(ExportItem item)
+    {
+        if (pageIdByToken.TryGetValue(item.HierarchyToken, out var pageId))
+        {
+            _heuristicallyAssignedPageIds.Add(pageId);
+        }
     }
 
     private static void AddDistinctLink(ICollection<ReaderLink> links, ReaderLink link)
