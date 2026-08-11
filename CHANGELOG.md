@@ -2,6 +2,16 @@
 
 本文件记录面向使用者的重要变化。版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.3] - 2026-08-11
+
+### 修复
+
+- 替换被截断的 Noto Sans SC Regular 字体，修复 Exporter 和 Reader 部分中文字符缺失的问题。
+
+### 调整
+
+- 新增嵌入字体的结构、字形数量和 SHA-256 完整性检查，并在 Exporter 与 Reader 的 GitHub Actions 编译前执行。
+
 ## [0.2.2] - 2026-08-11
 
 ### 新增

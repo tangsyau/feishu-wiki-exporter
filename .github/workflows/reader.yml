@@ -26,6 +26,8 @@ jobs:
           node scripts/check-version.mjs
           version="$(tr -d '\r\n' < VERSION)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Validate embedded fonts
+        run: python3 scripts/check-fonts.py
       - name: Install reader dependencies
         working-directory: knowledge-reader
         run: npm ci

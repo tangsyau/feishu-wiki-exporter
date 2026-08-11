@@ -21,6 +21,8 @@ jobs:
           node scripts/check-version.mjs
           version="$(tr -d '\r\n' < VERSION)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Validate embedded fonts
+        run: python3 scripts/check-fonts.py
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x

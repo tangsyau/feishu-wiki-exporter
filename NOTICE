@@ -8,3 +8,8 @@ The original project and this derivative are distributed under the Apache
 License, Version 2.0. The application architecture and source files were
 substantially rewritten for .NET 10, Avalonia, resilient downloads, and
 cross-platform use.
+
+The embedded Noto Sans SC Regular and SemiBold fonts are distributed under
+the SIL Open Font License, Version 1.1. The font binaries correspond to the
+Google Fonts files distributed by @expo-google-fonts/noto-sans-sc 0.4.3.
+The complete font license is included with the application and source code.
