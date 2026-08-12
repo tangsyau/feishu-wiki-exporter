@@ -1,6 +1,7 @@
 import "./styles.css";
 import packageInfo from "../package.json";
 import { HttpKnowledgeProvider } from "./providers/http-provider";
+import { LegacyTauriKnowledgeProvider } from "./providers/legacy-tauri-provider";
 import { resolveOrderedListNumber } from "./ordered-list";
 import type { KnowledgeProvider } from "./providers/knowledge-provider";
 import { TauriKnowledgeProvider } from "./providers/tauri-provider";
@@ -15,10 +16,11 @@ import type {
   SearchResult
 } from "./types";
 
-const isTauri = "__TAURI_INTERNALS__" in window;
-const provider: KnowledgeProvider = isTauri
+const provider: KnowledgeProvider = "__TAURI_INTERNALS__" in window
   ? new TauriKnowledgeProvider()
-  : new HttpKnowledgeProvider();
+  : "__TAURI__" in window
+    ? new LegacyTauriKnowledgeProvider()
+    : new HttpKnowledgeProvider();
 
 let manifest: KnowledgeManifest | null = null;
 let tree: KnowledgeTreeNode | null = null;

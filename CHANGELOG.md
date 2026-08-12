@@ -2,6 +2,19 @@
 
 本文件记录面向使用者的重要变化。版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.6] - 2026-08-12
+
+### 新增
+
+- 新增独立的 Tauri 1 / WebKitGTK 4.0 Linux 试验外壳，与正式 Tauri 2 Reader 共用界面、搜索和离线知识库格式；
+- 新增手动 GitHub Actions 工作流，原生生成 x64 与 ARM64 的 DEB、AppImage 试验包；
+- 试验工作流在 Debian 10 / glibc 2.28 环境中构建，并检查二进制没有误链接 WebKitGTK 4.1 或更高版本的 glibc 符号。
+
+### 调整
+
+- Reader Web 前端的构建目标调整为 Safari 13 级别，避免旧版 WebKitGTK 4.0 无法解析较新的 JavaScript 语法；
+- Tauri 1 与 Tauri 2 Reader 使用相同应用标识，可以继续读取此前记住的知识库路径。
+
 ## [0.2.5] - 2026-08-11
 
 ### 修复

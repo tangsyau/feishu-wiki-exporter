@@ -1,19 +1,22 @@
 [package]
-name = "feishu-wiki-reader"
+name = "feishu-wiki-reader-webkitgtk4"
 version = "0.2.6"
-description = "Offline reader for Feishu Wiki Exporter knowledge packages"
+description = "Experimental WebKitGTK 4.0 shell for Feishu Wiki Reader"
 authors = ["Feishu Wiki Exporter contributors"]
 license = "Apache-2.0"
 repository = "https://github.com/tangsyau/feishu-wiki-exporter"
 edition = "2021"
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "1.5.6", features = [] }
 
 [dependencies]
 base64 = "0.22"
 open = "5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tauri = { version = "2", features = [] }
-tauri-plugin-dialog = "2"
+tauri = { version = "1.8.3", features = ["dialog-open"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

@@ -6,5 +6,8 @@ obj/
 *.suo
 artifacts/
 publish/
+node_modules/
+dist/
+target/
 *.part
 .feishu-export/

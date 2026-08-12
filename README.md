@@ -55,6 +55,7 @@ Exporter 和 Reader 使用统一的语义化版本号。当前版本会显示在
 
 - [飞书应用配置指南](docs/飞书应用配置指南.md)：创建应用、开通权限并授权知识库；
 - [离线知识库设计](docs/离线知识库设计.md)：离线包格式、全文索引和 Reader 分工；
+- [WebKitGTK 4.0 试验版](docs/WebKitGTK-4.0-试验版.md)：UOS V20 等旧版 Linux 的 Reader 测试方法；
 - [发布指南](docs/发布指南.md)：统一版本号、Git 标签和 GitHub Release 流程；
 - [发布前测试清单](docs/发布前测试清单.md)：供维护者在发布二进制包前进行跨平台回归测试。
 
@@ -165,6 +166,8 @@ GitHub Actions 会先为每个平台生成多文件、自包含的底层产物�
 | Alpine Linux x64 / ARM64 | `feishu-wiki-exporter-<版本>-linux-musl-*-portable` | 多文件 Portable TAR.GZ |
 
 阅读器由独立的 `reader` workflow 构建。Windows x64 提供免安装 Portable ZIP；Linux x64 / ARM64 各提供 AppImage、DEB 和 RPM。AppImage 继续作为免安装通用版，DEB / RPM 则使用目标系统的 WebKitGTK，优先用于 Debian/Deepin 与 Fedora/RHEL 等对应发行版。阅读器不包含任何 App ID、App Secret 或企业知识库内容；知识库数据由管理员另外分发。
+
+UOS V20 等只提供 WebKitGTK 4.0 的旧版系统，可以在 Actions 中手动运行 `Reader WebKitGTK 4.0 Experimental`，下载名称包含 `webkitgtk4.0-experimental` 的 x64 或 ARM64 DEB / AppImage。该试验构建使用 Tauri 1，并在 Debian 10 / glibc 2.28 环境中生成；它暂不进入正式 Release，也不会替换现有 Tauri 2 / WebKitGTK 4.1 产物。AppImage 同样依赖系统已安装 WebKitGTK 4.0，详情见[试验版说明](docs/WebKitGTK-4.0-试验版.md)。
 
 macOS 当前暂停正式支持，Exporter 与 Reader 的 Actions 均不再生成 macOS 发布包。以后如有明确需求，再重新进行实机兼容、签名和公证工作。
 

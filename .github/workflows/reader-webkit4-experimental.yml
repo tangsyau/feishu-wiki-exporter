@@ -1,0 +1,115 @@
+name: Reader WebKitGTK 4.0 Experimental
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.arch }} / Tauri 1 / WebKitGTK 4.0
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            arch: x64
+            machine: x86_64
+            deb_arch: amd64
+          - os: ubuntu-22.04-arm
+            arch: arm64
+            machine: aarch64
+            deb_arch: arm64
+    runs-on: ${{ matrix.os }}
+    container:
+      image: debian:buster
+    env:
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+    steps:
+      - name: Prepare Debian 10 archive repositories
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i \
+            -e 's|deb.debian.org/debian|archive.debian.org/debian|g' \
+            -e 's|security.debian.org/debian-security|archive.debian.org/debian-security|g' \
+            /etc/apt/sources.list
+          apt-get -o Acquire::Check-Valid-Until=false update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential ca-certificates curl file git libappindicator3-dev \
+            librsvg2-dev libssl-dev libwebkit2gtk-4.0-dev patchelf rpm wget xdg-utils
+
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            knowledge-reader/package-lock.json
+            knowledge-reader/legacy-tauri-v1/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Validate project version
+        id: version
+        shell: bash
+        run: |
+          node scripts/check-version.mjs
+          version="$(tr -d '\r\n' < VERSION)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Install reader dependencies
+        working-directory: knowledge-reader
+        run: npm ci
+
+      - name: Install Tauri 1 experimental CLI
+        working-directory: knowledge-reader/legacy-tauri-v1
+        run: npm ci
+
+      - name: Build WebKitGTK 4.0 experimental packages
+        working-directory: knowledge-reader/legacy-tauri-v1
+        run: npm run tauri -- build --bundles appimage,deb
+
+      - name: Verify WebKit and glibc compatibility
+        shell: bash
+        working-directory: knowledge-reader/legacy-tauri-v1
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = '${{ matrix.machine }}'
+          binary="src-tauri/target/release/feishu-wiki-reader-webkitgtk4"
+          deb_file="$(find src-tauri/target/release/bundle/deb -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          appimage_file="$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          test -x "$binary"
+          test -n "$deb_file"
+          test -n "$appimage_file"
+          readelf -d "$binary" | grep 'libwebkit2gtk-4.0.so.37'
+          if readelf -d "$binary" | grep -q 'libwebkit2gtk-4.1'; then
+            echo 'Experimental binary unexpectedly links to WebKitGTK 4.1.' >&2
+            exit 1
+          fi
+          dpkg-deb --info "$deb_file"
+          test "$(dpkg-deb --field "$deb_file" Architecture)" = '${{ matrix.deb_arch }}'
+          dpkg-deb --field "$deb_file" Depends | grep 'libwebkit2gtk-4.0-37'
+          max_glibc="$(objdump -T "$binary" | grep -o 'GLIBC_[0-9.]*' | sort -Vu | tail -1)"
+          test "$(printf '%s\n' GLIBC_2.28 "$max_glibc" | sort -V | tail -1)" = 'GLIBC_2.28'
+          echo "Maximum required glibc symbol: $max_glibc"
+
+      - name: Upload experimental AppImage
+        uses: actions/upload-artifact@v7
+        with:
+          name: feishu-wiki-reader-${{ steps.version.outputs.version }}-linux-${{ matrix.arch }}-webkitgtk4.0-experimental-appimage
+          path: knowledge-reader/legacy-tauri-v1/src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+      - name: Upload experimental DEB
+        uses: actions/upload-artifact@v7
+        with:
+          name: feishu-wiki-reader-${{ steps.version.outputs.version }}-linux-${{ matrix.arch }}-webkitgtk4.0-experimental-deb
+          path: knowledge-reader/legacy-tauri-v1/src-tauri/target/release/bundle/deb/*.deb
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7

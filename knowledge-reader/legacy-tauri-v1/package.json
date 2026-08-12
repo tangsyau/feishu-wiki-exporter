@@ -1,0 +1,11 @@
+{
+  "name": "feishu-wiki-reader-webkitgtk4-experimental",
+  "private": true,
+  "version": "0.2.6",
+  "scripts": {
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "1.6.3"
+  }
+}

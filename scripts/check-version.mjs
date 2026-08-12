@@ -15,6 +15,11 @@ const packageJson = JSON.parse(read("knowledge-reader/package.json"));
 const packageLock = JSON.parse(read("knowledge-reader/package-lock.json"));
 const tauriConfig = JSON.parse(read("knowledge-reader/src-tauri/tauri.conf.json"));
 const cargoVersion = read("knowledge-reader/src-tauri/Cargo.toml").match(/^version = "([^"]+)"$/m)?.[1];
+const legacyPackageJson = JSON.parse(read("knowledge-reader/legacy-tauri-v1/package.json"));
+const legacyPackageLock = JSON.parse(read("knowledge-reader/legacy-tauri-v1/package-lock.json"));
+const legacyTauriConfig = JSON.parse(read("knowledge-reader/legacy-tauri-v1/src-tauri/tauri.conf.json"));
+const legacyCargoVersion = read("knowledge-reader/legacy-tauri-v1/src-tauri/Cargo.toml")
+  .match(/^version = "([^"]+)"$/m)?.[1];
 const appStreamVersion = read("packaging/linux/io.github.tangsyau.feishu-wiki-exporter.metainfo.xml")
   .match(/<release version="([^"]+)"/u)?.[1];
 
@@ -24,6 +29,11 @@ const values = new Map([
   ["knowledge-reader/package-lock.json packages['']", packageLock.packages?.[""]?.version],
   ["knowledge-reader/src-tauri/Cargo.toml", cargoVersion],
   ["knowledge-reader/src-tauri/tauri.conf.json", tauriConfig.version],
+  ["knowledge-reader/legacy-tauri-v1/package.json", legacyPackageJson.version],
+  ["knowledge-reader/legacy-tauri-v1/package-lock.json", legacyPackageLock.version],
+  ["knowledge-reader/legacy-tauri-v1/package-lock.json packages['']", legacyPackageLock.packages?.[""]?.version],
+  ["knowledge-reader/legacy-tauri-v1/src-tauri/Cargo.toml", legacyCargoVersion],
+  ["knowledge-reader/legacy-tauri-v1/src-tauri/tauri.conf.json", legacyTauriConfig.package?.version],
   ["packaging/linux AppStream metadata", appStreamVersion]
 ]);
 

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://schema.tauri.app/config/1",
+  "build": {
+    "beforeBuildCommand": "npm --prefix .. run build",
+    "beforeDevCommand": "npm --prefix .. run dev",
+    "devPath": "http://127.0.0.1:1420",
+    "distDir": "../../dist",
+    "withGlobalTauri": true
+  },
+  "package": {
+    "productName": "Feishu Wiki Reader WebKitGTK 4.0 Experimental",
+    "version": "0.2.6"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": false,
+      "dialog": {
+        "open": true
+      }
+    },
+    "windows": [
+      {
+        "title": "飞书知识库离线阅读器（WebKitGTK 4.0 试验版）",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost"
+    },
+    "bundle": {
+      "active": true,
+      "targets": [
+        "appimage",
+        "deb"
+      ],
+      "identifier": "io.github.tangsyau.feishu-wiki-reader",
+      "category": "Productivity",
+      "shortDescription": "使用 WebKitGTK 4.0 的飞书离线知识库试验版阅读器",
+      "resources": [
+        "../../../LICENSE",
+        "../../../NOTICE",
+        "../../../src/FeishuExporter.Desktop/Assets/Fonts/OFL-1.1.txt"
+      ],
+      "icon": [
+        "../../src-tauri/icons/32x32.png",
+        "../../src-tauri/icons/128x128.png",
+        "../../src-tauri/icons/128x128@2x.png",
+        "../../src-tauri/icons/icon.png"
+      ],
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.0-37",
+          "libgtk-3-0"
+        ]
+      }
+    }
+  }
+}
