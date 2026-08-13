@@ -9,7 +9,7 @@
   },
   "package": {
     "productName": "Feishu Wiki Reader WebKitGTK 4.0 Experimental",
-    "version": "0.2.6"
+    "version": "0.2.7"
   },
   "tauri": {
     "allowlist": {

@@ -17,6 +17,8 @@
 - 所需最高 glibc 符号不超过 `GLIBC_2.28`；
 - DEB 明确声明依赖 `libwebkit2gtk-4.0-37`。
 
+校验步骤会在日志中列出实际生成的文件、程序动态依赖、DEB 架构与依赖、最高 glibc 符号。若校验失败，Actions 页面会额外出现名称含 `unverified-diagnostics` 的诊断包，其中的 `webkit4-verification.txt` 会说明具体失败项。该诊断包没有通过兼容性校验，只用于排查，不应安装或分发。
+
 ## 安装和运行
 
 确认系统架构和 WebKitGTK：

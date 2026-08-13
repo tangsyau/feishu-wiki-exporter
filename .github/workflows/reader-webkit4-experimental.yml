@@ -76,25 +76,24 @@ jobs:
         shell: bash
         working-directory: knowledge-reader/legacy-tauri-v1
         run: |
-          set -euo pipefail
-          test "$(uname -m)" = '${{ matrix.machine }}'
-          binary="src-tauri/target/release/feishu-wiki-reader-webkitgtk4"
-          deb_file="$(find src-tauri/target/release/bundle/deb -maxdepth 1 -type f -name '*.deb' -print -quit)"
-          appimage_file="$(find src-tauri/target/release/bundle/appimage -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
-          test -x "$binary"
-          test -n "$deb_file"
-          test -n "$appimage_file"
-          readelf -d "$binary" | grep 'libwebkit2gtk-4.0.so.37'
-          if readelf -d "$binary" | grep -q 'libwebkit2gtk-4.1'; then
-            echo 'Experimental binary unexpectedly links to WebKitGTK 4.1.' >&2
-            exit 1
-          fi
-          dpkg-deb --info "$deb_file"
-          test "$(dpkg-deb --field "$deb_file" Architecture)" = '${{ matrix.deb_arch }}'
-          dpkg-deb --field "$deb_file" Depends | grep 'libwebkit2gtk-4.0-37'
-          max_glibc="$(objdump -T "$binary" | grep -o 'GLIBC_[0-9.]*' | sort -Vu | tail -1)"
-          test "$(printf '%s\n' GLIBC_2.28 "$max_glibc" | sort -V | tail -1)" = 'GLIBC_2.28'
-          echo "Maximum required glibc symbol: $max_glibc"
+          bash ../../scripts/verify-reader-webkit4.sh \
+            '${{ matrix.machine }}' \
+            '${{ matrix.deb_arch }}' \
+            src-tauri/target/release 2>&1 | tee webkit4-verification.txt
+
+      - name: Upload failed verification diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: feishu-wiki-reader-${{ steps.version.outputs.version }}-linux-${{ matrix.arch }}-webkitgtk4.0-unverified-diagnostics
+          path: |
+            knowledge-reader/legacy-tauri-v1/webkit4-verification.txt
+            knowledge-reader/legacy-tauri-v1/src-tauri/target/release/feishu-wiki-reader-webkitgtk4
+            knowledge-reader/legacy-tauri-v1/src-tauri/target/release/bundle/deb/*.deb
+            knowledge-reader/legacy-tauri-v1/src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: warn
+          compression-level: 0
+          retention-days: 7
 
       - name: Upload experimental AppImage
         uses: actions/upload-artifact@v7
