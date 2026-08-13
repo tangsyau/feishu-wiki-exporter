@@ -19,22 +19,41 @@ echo "Host architecture: ${actual_machine} (expected: ${expected_machine})"
 
 [[ -d "$release_dir" ]] || fail "Release directory does not exist: ${release_dir}"
 
-echo "Release files:"
-find "$release_dir" -maxdepth 4 -type f -print | sort
-
-binary="$(find "$release_dir" -maxdepth 1 -type f -name 'feishu-wiki-reader-webkitgtk4' -print -quit)"
 deb_file="$(find "$release_dir/bundle/deb" -maxdepth 1 -type f -name '*.deb' -print -quit 2>/dev/null || true)"
 appimage_file="$(find "$release_dir/bundle/appimage" -maxdepth 1 -type f -name '*.AppImage' -print -quit 2>/dev/null || true)"
 
-[[ -n "$binary" ]] || fail "Reader executable was not found directly under ${release_dir}."
-[[ -x "$binary" ]] || fail "Reader executable is not executable: ${binary}"
 [[ -n "$deb_file" ]] || fail "No DEB package was found under ${release_dir}/bundle/deb."
 [[ -n "$appimage_file" ]] || fail "No AppImage was found under ${release_dir}/bundle/appimage."
 
-echo "Reader executable: ${binary}"
-echo "DEB package:       ${deb_file}"
-echo "AppImage package:  ${appimage_file}"
-file "$binary" "$deb_file" "$appimage_file"
+echo "Release root files:"
+find "$release_dir" -maxdepth 1 -type f -printf '  %f (%s bytes)\n' | sort
+echo "Generated packages:"
+find "$release_dir/bundle" -maxdepth 2 -type f \
+  \( -name '*.deb' -o -name '*.AppImage' \) \
+  -printf '  %p (%s bytes)\n' | sort
+
+echo "DEB package:      ${deb_file}"
+echo "AppImage package: ${appimage_file}"
+file "$deb_file" "$appimage_file"
+
+# Tauri 1 may derive the packaged executable name from productName rather than
+# the Cargo package name. Inspect the executable that users will actually
+# install instead of assuming a fixed file name in target/release.
+inspection_dir="$(mktemp -d)"
+trap 'rm -rf "$inspection_dir"' EXIT
+dpkg-deb --extract "$deb_file" "$inspection_dir"
+mapfile -t packaged_binaries < <(
+  find "$inspection_dir/usr/bin" -maxdepth 1 -type f -executable -print 2>/dev/null | sort
+)
+[[ "${#packaged_binaries[@]}" -gt 0 ]] || \
+  fail "DEB does not contain an executable under /usr/bin."
+[[ "${#packaged_binaries[@]}" -eq 1 ]] || {
+  printf 'Executables found in DEB:\n%s\n' "${packaged_binaries[*]}" >&2
+  fail "DEB contains more than one executable under /usr/bin; the Reader entry point is ambiguous."
+}
+binary="${packaged_binaries[0]}"
+echo "Packaged Reader executable: /usr/bin/$(basename "$binary")"
+file "$binary"
 
 echo "Dynamic dependencies reported by ldd:"
 if ! dynamic_dependencies="$(ldd "$binary" 2>&1)"; then

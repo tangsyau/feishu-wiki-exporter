@@ -2,11 +2,6 @@ name: Reader WebKitGTK 4.0 Experimental
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/reader-webkit4-experimental.yml"
 
 permissions:
   contents: read
