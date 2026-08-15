@@ -8,8 +8,8 @@
     "withGlobalTauri": true
   },
   "package": {
-    "productName": "Feishu Wiki Reader WebKitGTK 4.0 Experimental",
-    "version": "0.2.8"
+    "productName": "Feishu Wiki Reader WebKitGTK 4.0",
+    "version": "0.3.0"
   },
   "tauri": {
     "allowlist": {
@@ -20,7 +20,7 @@
     },
     "windows": [
       {
-        "title": "飞书知识库离线阅读器（WebKitGTK 4.0 试验版）",
+        "title": "飞书知识库离线阅读器（WebKitGTK 4.0 兼容版）",
         "width": 1280,
         "height": 800,
         "minWidth": 900,
@@ -39,7 +39,7 @@
       ],
       "identifier": "io.github.tangsyau.feishu-wiki-reader",
       "category": "Productivity",
-      "shortDescription": "使用 WebKitGTK 4.0 的飞书离线知识库试验版阅读器",
+      "shortDescription": "适用于旧版 Linux 的 WebKitGTK 4.0 飞书离线知识库阅读器",
       "resources": [
         "../../../LICENSE",
         "../../../NOTICE",

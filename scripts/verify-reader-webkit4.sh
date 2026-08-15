@@ -11,7 +11,7 @@ fail() {
   exit 1
 }
 
-echo "== WebKitGTK 4.0 experimental package verification =="
+echo "== WebKitGTK 4.0 compatibility package verification =="
 actual_machine="$(uname -m)"
 echo "Host architecture: ${actual_machine} (expected: ${expected_machine})"
 [[ "$actual_machine" == "$expected_machine" ]] || \
@@ -65,7 +65,7 @@ echo "$dynamic_dependencies"
 grep -Fq 'libwebkit2gtk-4.0.so.37' <<< "$dynamic_dependencies" || \
   fail "Reader executable does not resolve libwebkit2gtk-4.0.so.37."
 if grep -Fq 'libwebkit2gtk-4.1' <<< "$dynamic_dependencies"; then
-  fail "Experimental Reader unexpectedly resolves a WebKitGTK 4.1 library."
+  fail "WebKitGTK 4.0 Reader unexpectedly resolves a WebKitGTK 4.1 library."
 fi
 
 echo "DEB package metadata:"
@@ -79,7 +79,7 @@ echo "DEB dependencies: ${deb_dependencies}"
 grep -Fq 'libwebkit2gtk-4.0-37' <<< "$deb_dependencies" || \
   fail "DEB does not declare a dependency on libwebkit2gtk-4.0-37."
 if grep -Fq 'libwebkit2gtk-4.1' <<< "$deb_dependencies"; then
-  fail "Experimental DEB unexpectedly declares a WebKitGTK 4.1 dependency."
+  fail "WebKitGTK 4.0 validation DEB unexpectedly declares a WebKitGTK 4.1 dependency."
 fi
 
 max_glibc="$({ objdump -T "$binary" 2>/dev/null || true; } | \

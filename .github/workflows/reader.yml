@@ -28,6 +28,8 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Validate embedded fonts
         run: python3 scripts/check-fonts.py
+      - name: Validate application icons
+        run: python3 scripts/check-icons.py
       - name: Install reader dependencies
         working-directory: knowledge-reader
         run: npm ci
@@ -118,7 +120,7 @@ jobs:
         if: matrix.kind == 'linux'
         uses: actions/upload-artifact@v7
         with:
-          name: feishu-wiki-reader-${{ needs.web.outputs.version }}-linux-${{ matrix.arch }}-appimage
+          name: feishu-wiki-reader-${{ needs.web.outputs.version }}-linux-${{ matrix.arch }}-webkitgtk4.1-appimage
           path: knowledge-reader/src-tauri/target/release/bundle/appimage/*.AppImage
           if-no-files-found: error
           compression-level: 0
@@ -127,7 +129,7 @@ jobs:
         if: matrix.kind == 'linux'
         uses: actions/upload-artifact@v7
         with:
-          name: feishu-wiki-reader-${{ needs.web.outputs.version }}-linux-${{ matrix.arch }}-deb
+          name: feishu-wiki-reader-${{ needs.web.outputs.version }}-linux-${{ matrix.arch }}-webkitgtk4.1-deb
           path: knowledge-reader/src-tauri/target/release/bundle/deb/*.deb
           if-no-files-found: error
           compression-level: 0
@@ -136,7 +138,7 @@ jobs:
         if: matrix.kind == 'linux'
         uses: actions/upload-artifact@v7
         with:
-          name: feishu-wiki-reader-${{ needs.web.outputs.version }}-linux-${{ matrix.arch }}-rpm
+          name: feishu-wiki-reader-${{ needs.web.outputs.version }}-linux-${{ matrix.arch }}-webkitgtk4.1-rpm
           path: knowledge-reader/src-tauri/target/release/bundle/rpm/*.rpm
           if-no-files-found: error
           compression-level: 0

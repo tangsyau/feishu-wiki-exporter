@@ -31,7 +31,7 @@
 - 现代化三步桌面界面，将连接飞书、选择内容和导出设置分开呈现；
 - 内置 Noto Sans SC 界面字体，统一 Windows 和 Linux 的主要字形；
 - 使用可缩放布局和布局取整，适配 HiDPI 与较高系统缩放比例；
-- 原创应用图标，窗口与 Windows 发布文件统一使用；
+- Exporter 与 Reader 使用同一视觉家族的独立应用图标，并提供高分屏母版与 Windows 多尺寸图标；
 - App Secret 只在内存中使用，不写入配置文件。
 
 暂不支持 Markdown、飞书画板、思维笔记等需要单独解析的类型。
@@ -55,7 +55,7 @@ Exporter 和 Reader 使用统一的语义化版本号。当前版本会显示在
 
 - [飞书应用配置指南](docs/飞书应用配置指南.md)：创建应用、开通权限并授权知识库；
 - [离线知识库设计](docs/离线知识库设计.md)：离线包格式、全文索引和 Reader 分工；
-- [WebKitGTK 4.0 试验版](docs/WebKitGTK-4.0-试验版.md)：UOS V20 等旧版 Linux 的 Reader 测试方法；
+- [WebKitGTK 4.0 兼容版](docs/WebKitGTK-4.0-兼容版.md)：UOS V20 等旧版 Linux 的 Reader 选择与运行方法；
 - [发布指南](docs/发布指南.md)：统一版本号、Git 标签和 GitHub Release 流程；
 - [发布前测试清单](docs/发布前测试清单.md)：供维护者在发布二进制包前进行跨平台回归测试。
 
@@ -109,7 +109,7 @@ dotnet run --project src/FeishuExporter.Desktop
       └─ asset-cache/
 ```
 
-不要删除导出根目录中的 `.feishu-exporter-state`。它按飞书来源分别保存 Reader 与 Office 的增量状态；删除某一种输出目录不会影响另一种状态。0.2.0 首次运行时会尝试复制旧版 Office 状态，旧文件不会被自动删除。Office 目录内仍可能保留 `.feishu-export` 诊断和历史导航页备份，用于兼容与排错。
+不要删除导出根目录中的 `.feishu-exporter-state`。它按飞书来源分别保存 Reader 与 Office 的增量状态；删除某一种输出目录不会影响另一种状态。升级旧版时，程序会在需要时复制旧的 Office 状态但不主动删除原文件。Office 目录内仍可能保留 `.feishu-export` 诊断和历史导航页备份，用于兼容与排错。
 
 “内嵌附件位置”默认选择“与主文档同一目录”。例如主文档为 `abc.docx`、内嵌附件为 `abc.pdf`，两者会并列保存。也可以改为“主文档同名子文件夹”，恢复为 `abc/abc.pdf` 的布局。
 
@@ -156,7 +156,7 @@ version 3 直接把飞书块规范化为页面 JSON，保留段落换行、标�
 
 GitHub Actions 会先为每个平台生成多文件、自包含的底层产物，然后再封装为适合用户下载的格式：
 
-推送与 `VERSION` 对应的标签（例如 `v0.1.0`）后，`release` workflow 会自动调用 Exporter 和 Reader 构建、汇总 15 个平台包、生成 `SHA256SUMS.txt`，并创建已经附带全部文件和发行说明的 Draft Release。维护者检查无误后只需点击 **Publish release**，不需要逐个下载和重新上传 Actions 产物。具体步骤参见[发布指南](docs/发布指南.md)。
+推送与 `VERSION` 对应的标签（例如 `v0.3.0`）后，`release` workflow 会自动调用 Exporter、常规 Reader 和 WebKitGTK 4.0 兼容版构建，汇总 17 个平台包、生成 `SHA256SUMS.txt`，并创建已经附带全部文件和发行说明的 Draft Release。维护者检查无误后只需点击 **Publish release**，不需要逐个下载和重新上传 Actions 产物。具体步骤参见[发布指南](docs/发布指南.md)。
 
 | 平台 | Actions 产物 | 面向用户的格式 |
 |---|---|---|
@@ -165,9 +165,17 @@ GitHub Actions 会先为每个平台生成多文件、自包含的底层产物�
 | 常规 Linux x64 / ARM64 | `feishu-wiki-exporter-<版本>-linux-*-portable` | 多文件 Portable TAR.GZ，AppImage 无法运行时使用 |
 | Alpine Linux x64 / ARM64 | `feishu-wiki-exporter-<版本>-linux-musl-*-portable` | 多文件 Portable TAR.GZ |
 
-阅读器由独立的 `reader` workflow 构建。Windows x64 提供免安装 Portable ZIP；Linux x64 / ARM64 各提供 AppImage、DEB 和 RPM。AppImage 继续作为免安装通用版，DEB / RPM 则使用目标系统的 WebKitGTK，优先用于 Debian/Deepin 与 Fedora/RHEL 等对应发行版。阅读器不包含任何 App ID、App Secret 或企业知识库内容；知识库数据由管理员另外分发。
+阅读器的 Windows x64 版提供免安装 Portable ZIP。常规 Linux x64 / ARM64 使用 WebKitGTK 4.1，各提供 AppImage、DEB 和 RPM；文件名明确包含 `webkitgtk4.1`。DEB / RPM 使用目标系统的运行库，优先用于 Debian/Deepin 与 Fedora/RHEL 等对应发行版。阅读器不包含任何 App ID、App Secret 或企业知识库内容；知识库数据由管理员另外分发。
 
-UOS V20 等只提供 WebKitGTK 4.0 的旧版系统，可以在 Actions 中手动运行 `Reader WebKitGTK 4.0 Experimental`，下载名称包含 `webkitgtk4.0-experimental` 的 x64 或 ARM64 DEB / AppImage。该试验构建使用 Tauri 1，并在 Debian 10 / glibc 2.28 环境中生成；它暂不进入正式 Release，也不会替换现有 Tauri 2 / WebKitGTK 4.1 产物。AppImage 同样依赖系统已安装 WebKitGTK 4.0，详情见[试验版说明](docs/WebKitGTK-4.0-试验版.md)。
+UOS V20 等只有 WebKitGTK 4.0 的旧版系统，使用正式 Release 中名称包含 `webkitgtk4.0` 的 x64 或 ARM64 AppImage。该兼容版使用 Tauri 1，并在 Debian 10 / glibc 2.28 环境中生成；它不会替换常规 WebKitGTK 4.1 产物。AppImage仍依赖系统已安装 WebKitGTK 4.0，详情见[兼容版说明](docs/WebKitGTK-4.0-兼容版.md)。
+
+| Reader 平台 | 正式发布格式 | 建议用途 |
+|---|---|---|
+| Windows x64 | Portable ZIP | 解压即用，不显示命令行窗口 |
+| Linux x64 / ARM64，WebKitGTK 4.1 | AppImage | 免安装通用版 |
+| Linux x64 / ARM64，WebKitGTK 4.1 | DEB | Debian、Ubuntu、Deepin 等 |
+| Linux x64 / ARM64，WebKitGTK 4.1 | RPM | Fedora、RHEL 系等 |
+| Linux x64 / ARM64，WebKitGTK 4.0 | AppImage | UOS V20、旧版 Deepin 等兼容环境 |
 
 macOS 当前暂停正式支持，Exporter 与 Reader 的 Actions 均不再生成 macOS 发布包。以后如有明确需求，再重新进行实机兼容、签名和公证工作。
 
@@ -176,15 +184,15 @@ macOS 当前暂停正式支持，Exporter 与 Reader 的 Actions 均不再生成
 AppImage 下载后需要赋予执行权限：
 
 ```bash
-chmod +x feishu-wiki-exporter-0.1.0-linux-x64.AppImage
-./feishu-wiki-exporter-0.1.0-linux-x64.AppImage
+chmod +x feishu-wiki-exporter-0.3.0-linux-x64.AppImage
+./feishu-wiki-exporter-0.3.0-linux-x64.AppImage
 ```
 
 Portable 版必须完整解压并保留目录内全部文件，不能只复制 `FeishuWikiExporter`。TAR.GZ 会保留 Linux 执行权限：
 
 ```bash
-tar -xzf feishu-wiki-exporter-0.1.0-linux-x64-portable.tar.gz
-cd feishu-wiki-exporter-0.1.0-linux-x64
+tar -xzf feishu-wiki-exporter-0.3.0-linux-x64-portable.tar.gz
+cd feishu-wiki-exporter-0.3.0-linux-x64
 ./FeishuWikiExporter
 ```
 

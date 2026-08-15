@@ -209,12 +209,6 @@ public sealed record DocumentInspection(
 
 public sealed record OfflineKnowledgeProgress(int Completed, int Total, string CurrentItem);
 
-public sealed record OfflineKnowledgeBuildResult(
-    string OutputDirectory,
-    int TotalFiles,
-    int IndexedDocuments,
-    int ReusedPages);
-
 internal sealed record ApiEnvelope<T>(
     [property: JsonPropertyName("code")] int Code,
     [property: JsonPropertyName("msg")] string? Message,

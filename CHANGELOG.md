@@ -2,6 +2,21 @@
 
 本文件记录面向使用者的重要变化。版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.3.0] - 2026-08-15
+
+### 新增
+
+- Exporter 与 Reader 使用同一视觉家族的独立图标：Exporter 表达文档导出，Reader 表达知识阅读与搜索；
+- 图标提供 1024×1024 高分屏母版、Linux 大尺寸 PNG 和 Windows 16—256px 多尺寸 ICO，并加入自动完整性检查；
+- WebKitGTK 4.0 兼容版 x64 / ARM64 AppImage 加入常规 GitHub Release，供 UOS V20、旧版 Deepin 等系统使用。
+
+### 调整
+
+- 常规 WebKitGTK 4.1 Reader 的 AppImage、DEB、RPM 发布文件名明确标注运行库版本，降低用户选错包的概率；
+- Git 标签现在自动汇总 17 个正式发布包及 `SHA256SUMS.txt`；
+- 清理已停用的 Office→离线包二次转换器、移动端/macOS 图标模板和试验过程文档，保留直接页面 JSON 生成路径；
+- Reader 侧栏与欢迎页使用新的 Reader 图标，WebKitGTK 4.0 的用户可见名称由“试验版”调整为“兼容版”。
+
 ## [0.2.8] - 2026-08-13
 
 ### 修复

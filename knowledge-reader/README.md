@@ -10,11 +10,11 @@
 - 页面可以同时打开正文和展开子页面，纯导航页也保留可点击的子页面目录；
 - 保留飞书知识库中的同级排列顺序，不改动实际文件名；
 - 标题搜索；
-- DOCX 文本的中文二元组全文索引；
+- 页面标题和规范化正文的中文二元组全文索引；
 - 从搜索结果打开文档后，可返回原结果列表，并恢复关键词和滚动位置；
 - 记住最后一次成功打开的离线知识库，并允许随时切换；
 - 提供可点击的面包屑，打开页面时自动展开并定位左侧目录；
-- DOCX 网页化阅读，包括常见标题、段落、列表、表格和内嵌图片；
+- 直接呈现飞书页面 JSON，包括常见标题、段落、列表、表格和内嵌图片；
 - PDF、XLSX 和其他附件保留原文件并调用系统默认程序打开。
 
 Web 前端通过 `KnowledgeProvider` 抽象读取内容。Tauri 模式使用受限制的本地文件命令；非 Tauri 模式会从 `./knowledge/` 通过 HTTP 读取同一数据格式，仅为以后的内网部署保留接口，当前不提供服务器部署流程。
@@ -37,7 +37,7 @@ npm run tauri build
 
 正式发布时，Windows x64 版采用 Portable ZIP，不生成 NSIS 安装程序；Linux x64 与 ARM64 均同时提供 AppImage、DEB 和 RPM。Windows Portable 由 GitHub Actions 使用 `--no-bundle` 构建，解压后直接运行 `FeishuWikiReader.exe`。
 
-Linux AppImage 适合无需安装的通用场景，但它会捆绑 WebKitGTK 等运行时。DEB / RPM 改用目标系统的 WebKitGTK，包更小，也更适合排查 AppImage 与特定发行版图形栈的兼容问题。Debian、Ubuntu、Deepin 优先测试 DEB；Fedora、RHEL 系优先测试 RPM。
+常规 Linux Reader 使用 Tauri 2 / WebKitGTK 4.1，x64 与 ARM64 均提供 AppImage、DEB 和 RPM。DEB / RPM 使用目标系统的 WebKitGTK，包更小；Debian、Ubuntu、Deepin 优先测试 DEB，Fedora、RHEL 系优先测试 RPM。只有 WebKitGTK 4.0 的旧系统使用单独的 Tauri 1 兼容版 AppImage。
 
 Fedora / RHEL 系安装示例：
 

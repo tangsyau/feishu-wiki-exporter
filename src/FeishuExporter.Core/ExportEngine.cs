@@ -74,11 +74,6 @@ public sealed class ExportEngine(FeishuApiClient apiClient)
             options.DocumentFormat,
             options.DownloadAttachments,
             options.EmbeddedAttachmentPlacement);
-        await ExportOrderStore.SaveAsync(sourceDirectory, planned, cancellationToken);
-        File.Copy(
-            Path.Combine(sourceDirectory, ".feishu-export", "order.json"),
-            Path.Combine(stateDirectory, "order.json"),
-            overwrite: true);
         foreach (var folder in planned.Where(x => x.Item.IsFolder))
         {
             Directory.CreateDirectory(Path.Combine(sourceDirectory, folder.RelativePath));

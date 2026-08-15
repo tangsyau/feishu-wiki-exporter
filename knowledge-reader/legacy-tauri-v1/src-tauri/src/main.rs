@@ -155,5 +155,5 @@ fn main() {
             open_original
         ])
         .run(tauri::generate_context!())
-        .expect("error while running Feishu Wiki Reader WebKitGTK 4.0 experimental build");
+        .expect("error while running Feishu Wiki Reader WebKitGTK 4.0 compatibility build");
 }

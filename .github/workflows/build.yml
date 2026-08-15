@@ -23,6 +23,8 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Validate embedded fonts
         run: python3 scripts/check-fonts.py
+      - name: Validate application icons
+        run: python3 scripts/check-icons.py
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x

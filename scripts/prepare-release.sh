@@ -72,17 +72,19 @@ done
 )
 
 for arch in x64 arm64; do
-  copy_single_file "feishu-wiki-reader-$version-linux-$arch-appimage" \
-    "*.AppImage" "feishu-wiki-reader-$version-linux-$arch.AppImage"
-  copy_single_file "feishu-wiki-reader-$version-linux-$arch-deb" \
-    "*.deb" "feishu-wiki-reader-$version-linux-$arch.deb"
-  copy_single_file "feishu-wiki-reader-$version-linux-$arch-rpm" \
-    "*.rpm" "feishu-wiki-reader-$version-linux-$arch.rpm"
+  copy_single_file "feishu-wiki-reader-$version-linux-$arch-webkitgtk4.1-appimage" \
+    "*.AppImage" "feishu-wiki-reader-$version-linux-$arch-webkitgtk4.1.AppImage"
+  copy_single_file "feishu-wiki-reader-$version-linux-$arch-webkitgtk4.1-deb" \
+    "*.deb" "feishu-wiki-reader-$version-linux-$arch-webkitgtk4.1.deb"
+  copy_single_file "feishu-wiki-reader-$version-linux-$arch-webkitgtk4.1-rpm" \
+    "*.rpm" "feishu-wiki-reader-$version-linux-$arch-webkitgtk4.1.rpm"
+  copy_single_file "feishu-wiki-reader-$version-linux-$arch-webkitgtk4.0-appimage" \
+    "*.AppImage" "feishu-wiki-reader-$version-linux-$arch-webkitgtk4.0.AppImage"
 done
 
 package_count="$(find "$output_dir" -maxdepth 1 -type f | wc -l | tr -d ' ')"
-if [[ "$package_count" != "15" ]]; then
-  echo "Expected 15 release packages, found $package_count." >&2
+if [[ "$package_count" != "17" ]]; then
+  echo "Expected 17 release packages, found $package_count." >&2
   exit 1
 fi
 
@@ -91,4 +93,4 @@ fi
   sha256sum ./* | sort -k 2 > SHA256SUMS.txt
 )
 
-echo "Prepared 15 packages and SHA256SUMS.txt for version $version."
+echo "Prepared 17 packages and SHA256SUMS.txt for version $version."

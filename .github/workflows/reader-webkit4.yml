@@ -1,7 +1,8 @@
-name: Reader WebKitGTK 4.0 Experimental
+name: Reader WebKitGTK 4.0 Compatibility
 
 on:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -60,15 +61,18 @@ jobs:
           version="$(tr -d '\r\n' < VERSION)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
+      - name: Validate application icons
+        run: python3 scripts/check-icons.py
+
       - name: Install reader dependencies
         working-directory: knowledge-reader
         run: npm ci
 
-      - name: Install Tauri 1 experimental CLI
+      - name: Install Tauri 1 compatibility CLI
         working-directory: knowledge-reader/legacy-tauri-v1
         run: npm ci
 
-      - name: Build WebKitGTK 4.0 experimental packages
+      - name: Build WebKitGTK 4.0 compatibility packages
         working-directory: knowledge-reader/legacy-tauri-v1
         run: npm run tauri -- build --bundles appimage,deb
 
@@ -88,27 +92,17 @@ jobs:
           name: feishu-wiki-reader-${{ steps.version.outputs.version }}-linux-${{ matrix.arch }}-webkitgtk4.0-unverified-diagnostics
           path: |
             knowledge-reader/legacy-tauri-v1/webkit4-verification.txt
-            knowledge-reader/legacy-tauri-v1/src-tauri/target/release/feishu-wiki-reader-webkitgtk4
             knowledge-reader/legacy-tauri-v1/src-tauri/target/release/bundle/deb/*.deb
             knowledge-reader/legacy-tauri-v1/src-tauri/target/release/bundle/appimage/*.AppImage
           if-no-files-found: warn
           compression-level: 0
           retention-days: 7
 
-      - name: Upload experimental AppImage
+      - name: Upload WebKitGTK 4.0 AppImage
         uses: actions/upload-artifact@v7
         with:
-          name: feishu-wiki-reader-${{ steps.version.outputs.version }}-linux-${{ matrix.arch }}-webkitgtk4.0-experimental-appimage
+          name: feishu-wiki-reader-${{ steps.version.outputs.version }}-linux-${{ matrix.arch }}-webkitgtk4.0-appimage
           path: knowledge-reader/legacy-tauri-v1/src-tauri/target/release/bundle/appimage/*.AppImage
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 7
-
-      - name: Upload experimental DEB
-        uses: actions/upload-artifact@v7
-        with:
-          name: feishu-wiki-reader-${{ steps.version.outputs.version }}-linux-${{ matrix.arch }}-webkitgtk4.0-experimental-deb
-          path: knowledge-reader/legacy-tauri-v1/src-tauri/target/release/bundle/deb/*.deb
           if-no-files-found: error
           compression-level: 0
           retention-days: 7

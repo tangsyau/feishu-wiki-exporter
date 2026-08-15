@@ -30,11 +30,19 @@ jobs:
       actions: read
       contents: read
 
+  reader_webkit4:
+    name: Build Reader WebKitGTK 4.0 Compatibility
+    uses: ./.github/workflows/reader-webkit4.yml
+    permissions:
+      actions: read
+      contents: read
+
   release:
     name: Create draft release
     needs:
       - exporter
       - reader
+      - reader_webkit4
     runs-on: ubuntu-latest
     permissions:
       actions: read

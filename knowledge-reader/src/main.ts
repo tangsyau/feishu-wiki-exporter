@@ -52,7 +52,7 @@ app.innerHTML = `
   <div class="shell">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark">F</div>
+        <div class="brand-mark" aria-hidden="true"></div>
         <div>
           <div class="brand-title">飞书知识库离线阅读器</div>
           <div class="brand-subtitle">Feishu Wiki Reader</div>
@@ -621,7 +621,7 @@ function showWelcome(): void {
   treeElement.innerHTML = `<div class="tree-empty">尚未打开知识库</div>`;
   contentElement.innerHTML = `
     <div class="welcome">
-      <div class="welcome-mark">F</div>
+      <div class="welcome-mark" aria-hidden="true"></div>
       <h1>打开离线知识库</h1>
       <p>按飞书原有层级浏览文档，或使用标题和全文搜索快速找到内容。</p>
       ${provider.mode === "tauri" ? `<button id="welcome-open" class="primary-action" type="button">选择知识库目录</button>` : ""}
