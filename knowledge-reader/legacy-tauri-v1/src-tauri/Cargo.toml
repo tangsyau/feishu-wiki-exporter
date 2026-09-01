@@ -1,6 +1,6 @@
 [package]
 name = "feishu-wiki-reader-webkitgtk4"
-version = "0.3.3"
+version = "0.3.4"
 description = "WebKitGTK 4.0 compatibility shell for Feishu Wiki Reader"
 authors = ["Feishu Wiki Exporter contributors"]
 license = "Apache-2.0"

@@ -1,6 +1,6 @@
 [package]
 name = "feishu-wiki-reader"
-version = "0.3.3"
+version = "0.3.4"
 description = "Offline reader for Feishu Wiki Exporter knowledge packages"
 authors = ["Feishu Wiki Exporter contributors"]
 license = "Apache-2.0"

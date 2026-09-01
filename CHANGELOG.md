@@ -2,6 +2,13 @@
 
 本文件记录面向使用者的重要变化。版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.3.4] - 2026-09-01
+
+### 修复
+
+- WebKitGTK 4.0 AppImage 不再使用仅支持 Zstandard 的新版 `appimagetool` 重封装，改为以 Debian 10 系统的 `mksquashfs` 生成 XZ 文件系统，并与原 AppImage 运行时按原偏移重新组合；
+- 重新组合后立即检查运行时偏移和 SquashFS 可读性，避免生成后才在下一校验步骤发现压缩格式不兼容。
+
 ## [0.3.3] - 2026-09-01
 
 ### 修复

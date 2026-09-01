@@ -49,14 +49,15 @@ FEISHU_READER_DISABLE_MALEOON_COMPAT=1 ./feishu-wiki-reader-*-webkitgtk4.0.AppIm
 
 维护者可以在 Actions 中手动运行 **Reader WebKitGTK 4.0 Compatibility**。正式发布标签也会自动调用同一工作流，原生生成 x64 与 ARM64 AppImage。
 
-工作流使用 Tauri 1 和 Debian 10 / glibc 2.28 构建，并额外生成一个不发布的 DEB 作为校验载体，自动确认：
+工作流使用 Tauri 1 和 Debian 10 / glibc 2.28 构建。AppImage 以系统 `mksquashfs` 生成 XZ 文件系统，并保留 Tauri 原始 AppImage 的旧版运行时；工作流还会额外生成一个不发布的 DEB 作为校验载体，自动确认：
 
 - 实际安装程序链接 `libwebkit2gtk-4.0.so.37`；
 - 没有链接 WebKitGTK 4.1；
 - 所需最高 glibc 符号不超过 `GLIBC_2.28`；
 - 校验载体声明依赖 `libwebkit2gtk-4.0-37`；
 - AppImage 已安装 Maleoon 兼容启动器并保留 Tauri 原始入口；
-- AppImage 内部没有封装底层 Wayland 动态库。
+- AppImage 内部没有封装底层 Wayland 动态库；
+- 重新组合后的运行时偏移正确，XZ SquashFS 能够由兼容运行时解开。
 
 若校验失败，Actions 会生成名称含 `unverified-diagnostics` 的诊断包。该包没有通过兼容性检查，只用于排查，不应安装或分发。
 

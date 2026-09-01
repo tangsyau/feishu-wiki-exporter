@@ -18,8 +18,7 @@ fail() {
 [[ -f "$launcher_template" ]] || fail "Compatibility launcher does not exist: $launcher_template"
 
 case "$expected_machine" in
-  x86_64) appimage_arch="x86_64" ;;
-  aarch64) appimage_arch="aarch64" ;;
+  x86_64 | aarch64) ;;
   *) fail "Unsupported AppImage architecture: $expected_machine" ;;
 esac
 
@@ -67,21 +66,31 @@ else
   echo "No bundled low-level Wayland libraries were found."
 fi
 
-appimagetool_path="${APPIMAGETOOL_PATH:-$work_dir/appimagetool-${appimage_arch}.AppImage}"
-if [[ -z "${APPIMAGETOOL_PATH:-}" ]]; then
-  appimagetool_url="https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${appimage_arch}.AppImage"
-  curl --fail --location --silent --show-error --retry 3 --retry-delay 2 \
-    "$appimagetool_url" --output "$appimagetool_path"
-  chmod +x "$appimagetool_path"
-fi
-[[ -x "$appimagetool_path" ]] || fail "appimagetool is not executable: $appimagetool_path"
+command -v mksquashfs >/dev/null || fail "mksquashfs is not installed."
+mksquashfs_help="$(mksquashfs -help 2>&1 || true)"
+[[ -n "$mksquashfs_help" ]] || fail "mksquashfs did not report its supported compressors."
+grep -Eiq '(^|[[:space:]])xz([[:space:]]|$)' <<< "$mksquashfs_help" || \
+  fail "The system mksquashfs does not support XZ compression."
 
+squashfs_file="$work_dir/filesystem.squashfs"
+mksquashfs "$app_dir" "$squashfs_file" \
+  -noappend -comp xz -b 131072 -no-progress
+[[ -s "$squashfs_file" ]] || fail "mksquashfs did not create an XZ filesystem."
+
+# A type-2 AppImage is its ELF runtime followed by the SquashFS filesystem at
+# the offset reported by --appimage-offset. Reuse the original runtime exactly
+# so the patched package keeps the same old-distribution compatibility.
 patched_appimage="$work_dir/patched.AppImage"
-ARCH="$appimage_arch" APPIMAGE_EXTRACT_AND_RUN=1 \
-  "$appimagetool_path" --runtime-file "$runtime_file" --comp xz \
-    "$app_dir" "$patched_appimage"
-[[ -s "$patched_appimage" ]] || fail "appimagetool did not create a patched AppImage."
+cp "$runtime_file" "$patched_appimage"
+cat "$squashfs_file" >> "$patched_appimage"
+[[ -s "$patched_appimage" ]] || fail "Could not assemble the patched AppImage."
 
 chmod +x "$patched_appimage"
+patched_offset="$("$patched_appimage" --appimage-offset)"
+[[ "$patched_offset" == "$runtime_offset" ]] || \
+  fail "Patched AppImage offset is '$patched_offset', expected '$runtime_offset'."
+unsquashfs -o "$runtime_offset" -s "$patched_appimage" >/dev/null || \
+  fail "The patched AppImage does not contain a readable XZ SquashFS filesystem."
+
 mv "$patched_appimage" "$appimage_path"
 echo "Patched AppImage written successfully."

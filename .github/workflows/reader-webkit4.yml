@@ -39,7 +39,8 @@ jobs:
           apt-get -o Acquire::Check-Valid-Until=false update
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             build-essential ca-certificates curl file git libappindicator3-dev \
-            librsvg2-dev libssl-dev libwebkit2gtk-4.0-dev patchelf rpm wget xdg-utils
+            librsvg2-dev libssl-dev libwebkit2gtk-4.0-dev patchelf rpm \
+            squashfs-tools wget xdg-utils
 
       - uses: actions/checkout@v7
 
