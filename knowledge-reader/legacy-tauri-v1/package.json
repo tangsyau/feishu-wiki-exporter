@@ -1,7 +1,7 @@
 {
   "name": "feishu-wiki-reader-webkitgtk4",
   "private": true,
-  "version": "0.3.4",
+  "version": "0.3.5",
   "scripts": {
     "tauri": "tauri"
   },

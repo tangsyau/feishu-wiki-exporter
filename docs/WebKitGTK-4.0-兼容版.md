@@ -57,7 +57,7 @@ FEISHU_READER_DISABLE_MALEOON_COMPAT=1 ./feishu-wiki-reader-*-webkitgtk4.0.AppIm
 - 校验载体声明依赖 `libwebkit2gtk-4.0-37`；
 - AppImage 已安装 Maleoon 兼容启动器并保留 Tauri 原始入口；
 - AppImage 内部没有封装底层 Wayland 动态库；
-- 重新组合后的运行时偏移正确，XZ SquashFS 能够由兼容运行时解开。
+- 重新组合后的运行时偏移正确，最终 AppImage 能够自行完整解开 XZ 文件系统，且两个启动入口均存在。
 
 若校验失败，Actions 会生成名称含 `unverified-diagnostics` 的诊断包。该包没有通过兼容性检查，只用于排查，不应安装或分发。
 

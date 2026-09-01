@@ -89,8 +89,17 @@ chmod +x "$patched_appimage"
 patched_offset="$("$patched_appimage" --appimage-offset)"
 [[ "$patched_offset" == "$runtime_offset" ]] || \
   fail "Patched AppImage offset is '$patched_offset', expected '$runtime_offset'."
-unsquashfs -o "$runtime_offset" -s "$patched_appimage" >/dev/null || \
-  fail "The patched AppImage does not contain a readable XZ SquashFS filesystem."
+
+validation_dir="$work_dir/validation"
+mkdir -p "$validation_dir"
+(
+  cd "$validation_dir"
+  "$patched_appimage" --appimage-extract >/dev/null
+) || fail "The patched AppImage runtime could not extract its XZ filesystem."
+[[ -x "$validation_dir/squashfs-root/AppRun" ]] || \
+  fail "The patched AppImage did not extract its compatibility launcher."
+[[ -e "$validation_dir/squashfs-root/AppRun.tauri" ]] || \
+  fail "The patched AppImage did not preserve the original Tauri launcher."
 
 mv "$patched_appimage" "$appimage_path"
 echo "Patched AppImage written successfully."

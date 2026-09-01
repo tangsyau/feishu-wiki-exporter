@@ -11,6 +11,6 @@
   <launchable type="desktop-id">feishu-wiki-exporter.desktop</launchable>
   <url type="homepage">https://github.com/tangsyau/feishu-wiki-exporter</url>
   <releases>
-    <release version="0.3.4" date="2026-09-01" />
+    <release version="0.3.5" date="2026-09-01" />
   </releases>
 </component>
