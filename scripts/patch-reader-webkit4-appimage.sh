@@ -78,7 +78,8 @@ fi
 
 patched_appimage="$work_dir/patched.AppImage"
 ARCH="$appimage_arch" APPIMAGE_EXTRACT_AND_RUN=1 \
-  "$appimagetool_path" --runtime-file "$runtime_file" "$app_dir" "$patched_appimage"
+  "$appimagetool_path" --runtime-file "$runtime_file" --comp xz \
+    "$app_dir" "$patched_appimage"
 [[ -s "$patched_appimage" ]] || fail "appimagetool did not create a patched AppImage."
 
 chmod +x "$patched_appimage"
