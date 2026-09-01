@@ -76,6 +76,17 @@ jobs:
         working-directory: knowledge-reader/legacy-tauri-v1
         run: npm run tauri -- build --bundles appimage,deb
 
+      - name: Patch AppImage for system Wayland and Maleoon
+        shell: bash
+        run: |
+          set -euo pipefail
+          appimage_file="$(find knowledge-reader/legacy-tauri-v1/src-tauri/target/release/bundle/appimage \
+            -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          test -n "$appimage_file"
+          bash scripts/patch-reader-webkit4-appimage.sh \
+            "$appimage_file" \
+            '${{ matrix.machine }}'
+
       - name: Verify WebKit and glibc compatibility
         shell: bash
         working-directory: knowledge-reader/legacy-tauri-v1

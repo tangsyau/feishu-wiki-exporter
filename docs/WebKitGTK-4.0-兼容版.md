@@ -33,6 +33,18 @@ chmod +x feishu-wiki-reader-*-webkitgtk4.0.AppImage
 
 兼容版针对 WebKitGTK 4.0 环境构建。即使采用 AppImage，仍会使用系统图形栈；若无法启动，不要通过混装其他发行版的 WebKitGTK、glibc 或 GLib 强行解决。
 
+AppImage 不封装 `libwayland-client`、`libwayland-cursor`、`libwayland-egl` 和 `libwayland-server`，避免通用版 Wayland 库覆盖目标系统为显卡驱动提供的版本。在 ARM64 系统检测到 Maleoon EGL 驱动时，启动器还会自动优先加载系统 `libwayland-client.so.0`，并关闭 WebKitGTK 加速合成，以兼容该驱动依赖的 Wayland 扩展符号和渲染路径。其他架构及显卡不会自动关闭加速合成。
+
+如需排查自动检测，可以使用下面两个环境变量：
+
+```bash
+# 强制启用 Maleoon 兼容启动方式
+FEISHU_READER_FORCE_MALEOON_COMPAT=1 ./feishu-wiki-reader-*-webkitgtk4.0.AppImage
+
+# 禁用自动检测（仅用于对照测试）
+FEISHU_READER_DISABLE_MALEOON_COMPAT=1 ./feishu-wiki-reader-*-webkitgtk4.0.AppImage
+```
+
 ## 构建与校验
 
 维护者可以在 Actions 中手动运行 **Reader WebKitGTK 4.0 Compatibility**。正式发布标签也会自动调用同一工作流，原生生成 x64 与 ARM64 AppImage。
@@ -42,7 +54,9 @@ chmod +x feishu-wiki-reader-*-webkitgtk4.0.AppImage
 - 实际安装程序链接 `libwebkit2gtk-4.0.so.37`；
 - 没有链接 WebKitGTK 4.1；
 - 所需最高 glibc 符号不超过 `GLIBC_2.28`；
-- 校验载体声明依赖 `libwebkit2gtk-4.0-37`。
+- 校验载体声明依赖 `libwebkit2gtk-4.0-37`；
+- AppImage 已安装 Maleoon 兼容启动器并保留 Tauri 原始入口；
+- AppImage 内部没有封装底层 Wayland 动态库。
 
 若校验失败，Actions 会生成名称含 `unverified-diagnostics` 的诊断包。该包没有通过兼容性检查，只用于排查，不应安装或分发。
 

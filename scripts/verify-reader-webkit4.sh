@@ -36,11 +36,45 @@ echo "DEB package:      ${deb_file}"
 echo "AppImage package: ${appimage_file}"
 file "$deb_file" "$appimage_file"
 
+inspection_dir="$(mktemp -d)"
+trap 'rm -rf "$inspection_dir"' EXIT
+appimage_inspection_dir="$inspection_dir/appimage"
+mkdir -p "$appimage_inspection_dir"
+appimage_file_absolute="$(realpath "$appimage_file")"
+(
+  cd "$appimage_inspection_dir"
+  "$appimage_file_absolute" --appimage-extract >/dev/null
+)
+appimage_root="$appimage_inspection_dir/squashfs-root"
+[[ -d "$appimage_root" ]] || fail "AppImage extraction did not create squashfs-root."
+[[ -x "$appimage_root/AppRun" ]] || fail "AppImage compatibility launcher is missing or not executable."
+[[ -e "$appimage_root/AppRun.tauri" ]] || fail "Original Tauri AppRun was not preserved."
+sh -n "$appimage_root/AppRun" || fail "AppImage compatibility launcher has invalid shell syntax."
+grep -Fq 'FEISHU_READER_MALEOON_COMPAT=1' "$appimage_root/AppRun" || \
+  fail "AppImage does not contain the Maleoon compatibility launcher."
+grep -Fq 'WEBKIT_DISABLE_COMPOSITING_MODE' "$appimage_root/AppRun" || \
+  fail "AppImage launcher does not disable accelerated compositing for Maleoon."
+grep -Fq '/usr/lib/aarch64-linux-gnu/libwayland-client.so.0' "$appimage_root/AppRun" || \
+  fail "AppImage launcher does not prefer the ARM64 system Wayland client for Maleoon."
+
+mapfile -t forbidden_wayland_libraries < <(
+  find "$appimage_root" \( -type f -o -type l \) \
+    \( -name 'libwayland-client.so*' \
+      -o -name 'libwayland-cursor.so*' \
+      -o -name 'libwayland-egl.so*' \
+      -o -name 'libwayland-server.so*' \) \
+    -print | sort
+)
+if [[ "${#forbidden_wayland_libraries[@]}" -gt 0 ]]; then
+  printf 'Bundled low-level Wayland libraries found:\n%s\n' \
+    "${forbidden_wayland_libraries[*]}" >&2
+  fail "AppImage must use the target system's Wayland libraries."
+fi
+echo "AppImage system-Wayland and Maleoon launcher checks: OK"
+
 # Tauri 1 may derive the packaged executable name from productName rather than
 # the Cargo package name. Inspect the executable that users will actually
 # install instead of assuming a fixed file name in target/release.
-inspection_dir="$(mktemp -d)"
-trap 'rm -rf "$inspection_dir"' EXIT
 dpkg-deb --extract "$deb_file" "$inspection_dir"
 mapfile -t packaged_binaries < <(
   find "$inspection_dir/usr/bin" -maxdepth 1 -type f -executable -print 2>/dev/null | sort

@@ -1,0 +1,51 @@
+#!/bin/sh
+
+set -eu
+
+# Marker used by the release verifier. Keep this assignment in the packaged
+# launcher when changing the Maleoon compatibility path.
+FEISHU_READER_MALEOON_COMPAT=1
+export FEISHU_READER_MALEOON_COMPAT
+
+launcher_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+app_dir=${APPDIR:-$launcher_dir}
+
+is_maleoon_system=false
+if [ "${FEISHU_READER_FORCE_MALEOON_COMPAT:-0}" = "1" ]; then
+  is_maleoon_system=true
+elif [ "${FEISHU_READER_DISABLE_MALEOON_COMPAT:-0}" != "1" ] \
+  && [ "$(uname -m)" = "aarch64" ] \
+  && { [ -e /usr/lib/aarch64-linux-gnu/maleoon/libEGL.so.1 ] \
+    || [ -e /usr/lib/aarch64-linux-gnu/maleoon/libEGL.so ]; }; then
+  is_maleoon_system=true
+fi
+
+if [ "$is_maleoon_system" = "true" ]; then
+  # Maleoon's EGL driver expects symbols supplied by the distribution's
+  # customized libwayland-client. Load that library before any generic copy.
+  system_wayland_client=""
+  for candidate in \
+    /usr/lib/aarch64-linux-gnu/libwayland-client.so.0 \
+    /lib/aarch64-linux-gnu/libwayland-client.so.0
+  do
+    if [ -r "$candidate" ]; then
+      system_wayland_client=$candidate
+      break
+    fi
+  done
+
+  if [ -n "$system_wayland_client" ]; then
+    case ":${LD_PRELOAD:-}:" in
+      *":$system_wayland_client:"*) ;;
+      *) LD_PRELOAD="$system_wayland_client${LD_PRELOAD:+:$LD_PRELOAD}" ;;
+    esac
+    export LD_PRELOAD
+  fi
+
+  # WebKitGTK can create a window but leave its WebView gray when accelerated
+  # EGL compositing is unsupported by the proprietary Maleoon stack.
+  WEBKIT_DISABLE_COMPOSITING_MODE=${WEBKIT_DISABLE_COMPOSITING_MODE:-1}
+  export WEBKIT_DISABLE_COMPOSITING_MODE
+fi
+
+exec "$app_dir/AppRun.tauri" "$@"

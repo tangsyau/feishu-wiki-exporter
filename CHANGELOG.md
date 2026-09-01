@@ -2,6 +2,14 @@
 
 本文件记录面向使用者的重要变化。版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.3.1] - 2026-09-01
+
+### 修复
+
+- WebKitGTK 4.0 AppImage 不再封装通用版 Wayland 底层库，避免其覆盖 UOS ARM64 系统为 Maleoon 显卡驱动提供的定制 Wayland 库；
+- 在 ARM64 Maleoon 设备上自动使用系统 `libwayland-client` 并关闭 WebKitGTK 加速合成，修复启动时报 `undefined symbol: wl_proxy_ref`，以及手动预加载系统库后窗口只有灰色背景的问题；
+- 兼容版工作流在上传 AppImage 前重新检查启动器和内部动态库，未完成 Maleoon 修复或仍携带底层 Wayland 库时构建会直接失败。
+
 ## [0.3.0] - 2026-08-15
 
 ### 新增
