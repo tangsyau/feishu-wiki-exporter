@@ -15,7 +15,7 @@ fail() {
 
 [[ -f "$appimage_path" ]] || fail "AppImage does not exist: $appimage_path"
 [[ -x "$appimage_path" ]] || chmod +x "$appimage_path"
-[[ -x "$launcher_template" ]] || fail "Compatibility launcher is not executable: $launcher_template"
+[[ -f "$launcher_template" ]] || fail "Compatibility launcher does not exist: $launcher_template"
 
 case "$expected_machine" in
   x86_64) appimage_arch="x86_64" ;;
