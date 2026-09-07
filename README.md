@@ -144,6 +144,8 @@ dotnet run --project src/FeishuExporter.Desktop
 
 version 3 直接把飞书块规范化为页面 JSON，保留段落换行、标题、列表、引用、代码、图片、附件、页面目录和子页面目录。有序列表保留飞书的显式起始编号与续号信息；旧离线包缺少该信息时，Reader 会对连续列表进行兼容推断。每个飞书节点都是可打开的页面，同时可以拥有子页面；纯导航页也完整保留，其子页面标题能够在 Reader 内部跳转。多层导航页会根据目录块的 `wiki_token` 和完整知识树还原目标分类下的实际子页面。导航页分析只用于 Office 导出，不会删除 Reader 页面。
 
+Reader 搜索框支持直接点击输入，不再绑定 Ctrl+K。拖动左侧分隔线可调整目录宽度，双击恢复默认；聚焦分隔线后可用左右方向键微调、Home 恢复默认。顶部“阅读设置”可调整正文字号（12–28 px）和正文宽度（600–1550 px，最右端填满），设置自动保存；恢复默认只重置字号与正文宽度。文件卡片显示 PDF、DOCX、OFD 等扩展名，无扩展名时显示“文件”。
+
 知识树保留飞书原有父子关系和同级顺序，实际文件名不添加序号。Reader 会记住最后一次成功打开的知识库；页面顶部面包屑可以返回任意上级，左侧目录会自动展开并定位当前页面。搜索结果采用严格分组：标题命中始终排在仅正文命中之前；从搜索结果打开页面后，可以返回原结果并恢复关键词和滚动位置。PDF、XLSX 和其他无法直接呈现的文件作为必要资源保留，可调用系统默认程序打开。扫描版 PDF 的 OCR 当前不在支持范围。Reader 仍可打开旧的 version 1、version 2 离线包。
 
 更详细的格式说明参见：[离线知识库设计](docs/离线知识库设计.md)。
@@ -156,7 +158,7 @@ version 3 直接把飞书块规范化为页面 JSON，保留段落换行、标�
 
 GitHub Actions 会先为每个平台生成多文件、自包含的底层产物，然后再封装为适合用户下载的格式：
 
-普通源码推送不会自动运行 `build` 和 `reader`，需要时可在 Actions 页面手动触发。推送与 `VERSION` 对应的标签（例如 `v0.3.5`）后，`release` workflow 仍会自动调用 Exporter、常规 Reader 和 WebKitGTK 4.0 兼容版构建，汇总 17 个平台包、生成 `SHA256SUMS.txt`，并创建已经附带全部文件和发行说明的 Draft Release。维护者检查无误后只需点击 **Publish release**，不需要逐个下载和重新上传 Actions 产物。具体步骤参见[发布指南](docs/发布指南.md)。
+分支提交和拉取请求会自动运行 `build` 和 `reader`，也可在 Actions 页面手动触发。推送与 `VERSION` 对应的标签（例如 `v0.3.6`）后，`release` workflow 仍会自动调用 Exporter、常规 Reader 和 WebKitGTK 4.0 兼容版构建，汇总 17 个平台包、生成 `SHA256SUMS.txt`，并创建已经附带全部文件和发行说明的 Draft Release。维护者检查无误后只需点击 **Publish release**，不需要逐个下载和重新上传 Actions 产物。具体步骤参见[发布指南](docs/发布指南.md)。
 
 | 平台 | Actions 产物 | 面向用户的格式 |
 |---|---|---|
@@ -184,15 +186,15 @@ macOS 当前暂停正式支持，Exporter 与 Reader 的 Actions 均不再生成
 AppImage 下载后需要赋予执行权限：
 
 ```bash
-chmod +x feishu-wiki-exporter-0.3.5-linux-x64.AppImage
-./feishu-wiki-exporter-0.3.5-linux-x64.AppImage
+chmod +x feishu-wiki-exporter-0.3.6-linux-x64.AppImage
+./feishu-wiki-exporter-0.3.6-linux-x64.AppImage
 ```
 
 Portable 版必须完整解压并保留目录内全部文件，不能只复制 `FeishuWikiExporter`。TAR.GZ 会保留 Linux 执行权限：
 
 ```bash
-tar -xzf feishu-wiki-exporter-0.3.5-linux-x64-portable.tar.gz
-cd feishu-wiki-exporter-0.3.5-linux-x64
+tar -xzf feishu-wiki-exporter-0.3.6-linux-x64-portable.tar.gz
+cd feishu-wiki-exporter-0.3.6-linux-x64
 ./FeishuWikiExporter
 ```
 

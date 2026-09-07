@@ -1,3 +1,4 @@
+import { installReadingSettings, fileTypeLabel } from "./reading-settings";
 import "./styles.css";
 import packageInfo from "../package.json";
 import { HttpKnowledgeProvider } from "./providers/http-provider";
@@ -66,14 +67,28 @@ app.innerHTML = `
       <nav id="tree" class="tree" aria-label="知识库目录"></nav>
       <div class="reader-version">版本 ${escapeHtml(packageInfo.version)}</div>
     </aside>
+    <div id="sidebar-resizer" class="sidebar-resizer" role="separator" tabindex="0" aria-label="调整目录宽度" aria-orientation="vertical" aria-valuemin="220" title="拖动调整目录宽度，双击恢复默认；方向键微调"></div>
     <main class="main">
       <header class="topbar">
         <label class="search-box">
           <span class="search-icon">⌕</span>
           <input id="search" type="search" autocomplete="off"
-                 placeholder="搜索标题或正文（中文全文搜索建议至少输入 2 个字）" />
-          <kbd>Ctrl K</kbd>
+                 aria-label="搜索标题或正文" title="中文全文搜索建议至少输入 2 个字" placeholder="搜索标题或正文" />
         </label>
+        <div class="reading-settings">
+          <button id="reading-toggle" class="secondary-action" type="button" aria-expanded="false" aria-controls="reading-panel">阅读设置</button>
+          <div id="reading-panel" class="reading-panel" hidden>
+            <div class="reading-row"><span>字体大小</span><div class="font-controls">
+              <button id="reading-smaller" type="button" aria-label="减小正文字号">A−</button>
+              <output id="reading-font-value" aria-live="polite"></output>
+              <button id="reading-larger" type="button" aria-label="增大正文字号">A＋</button>
+            </div></div>
+            <div class="reading-row"><label for="reading-width">正文宽度</label><output id="reading-width-value"></output></div>
+            <input id="reading-width" type="range" min="600" max="1600" step="50" value="900" />
+            <div class="reading-range-labels"><span>较窄</span><span>填满</span></div>
+            <button id="reading-reset" class="secondary-action" type="button">恢复默认</button>
+          </div>
+        </div>
         <div id="knowledge-meta" class="knowledge-meta"></div>
       </header>
       <section id="content" class="content"></section>
@@ -103,13 +118,7 @@ searchInput.addEventListener("input", () => {
   searchTimer = window.setTimeout(() => void runSearch(), 130);
 });
 
-document.addEventListener("keydown", event => {
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-    event.preventDefault();
-    searchInput.focus();
-    searchInput.select();
-  }
-});
+installReadingSettings();
 
 treeElement.addEventListener("click", event => {
   const button = (event.target as HTMLElement).closest<HTMLButtonElement>("button[data-document-id]");
@@ -547,7 +556,7 @@ function renderKnowledgeBlock(block: KnowledgeBlock, orderedNumber: number | nul
         : `<div class="unsupported-block"${id}>图片资源未能下载</div>${children}`;
     case "file":
       return block.assetPath
-        ? `<button class="attachment-card" type="button" data-open-original="${escapeAttribute(block.assetPath)}"${id}><span>附件</span><strong>${escapeHtml(block.fileName ?? "打开附件")}</strong></button>${children}`
+        ? `<button class="attachment-card" type="button" data-open-original="${escapeAttribute(block.assetPath)}"${id}><span>${fileTypeLabel(block.fileName, block.assetPath)}</span><strong>${escapeHtml(block.fileName ?? "打开附件")}</strong></button>${children}`
         : `<div class="unsupported-block"${id}>附件资源未能下载：${escapeHtml(block.fileName ?? "未命名附件")}</div>${children}`;
     case "subpages":
       return block.links.length
