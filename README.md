@@ -158,7 +158,7 @@ Reader 搜索框支持直接点击输入，不再绑定 Ctrl+K。拖动左侧分
 
 GitHub Actions 会先为每个平台生成多文件、自包含的底层产物，然后再封装为适合用户下载的格式：
 
-分支提交和拉取请求会自动运行 `build` 和 `reader`，也可在 Actions 页面手动触发。推送与 `VERSION` 对应的标签（例如 `v0.3.6`）后，`release` workflow 仍会自动调用 Exporter、常规 Reader 和 WebKitGTK 4.0 兼容版构建，汇总 17 个平台包、生成 `SHA256SUMS.txt`，并创建已经附带全部文件和发行说明的 Draft Release。维护者检查无误后只需点击 **Publish release**，不需要逐个下载和重新上传 Actions 产物。具体步骤参见[发布指南](docs/发布指南.md)。
+分支提交和拉取请求会自动运行 `build` 和 `reader`，也可在 Actions 页面手动触发。推送与 `VERSION` 对应的标签（例如 `v0.3.7`）后，`release` workflow 仍会自动调用 Exporter、常规 Reader 和 WebKitGTK 4.0 兼容版构建，汇总 17 个平台包、生成 `SHA256SUMS.txt`，并创建已经附带全部文件和发行说明的 Draft Release。维护者检查无误后只需点击 **Publish release**，不需要逐个下载和重新上传 Actions 产物。具体步骤参见[发布指南](docs/发布指南.md)。
 
 | 平台 | Actions 产物 | 面向用户的格式 |
 |---|---|---|
@@ -186,15 +186,15 @@ macOS 当前暂停正式支持，Exporter 与 Reader 的 Actions 均不再生成
 AppImage 下载后需要赋予执行权限：
 
 ```bash
-chmod +x feishu-wiki-exporter-0.3.6-linux-x64.AppImage
-./feishu-wiki-exporter-0.3.6-linux-x64.AppImage
+chmod +x feishu-wiki-exporter-0.3.7-linux-x64.AppImage
+./feishu-wiki-exporter-0.3.7-linux-x64.AppImage
 ```
 
 Portable 版必须完整解压并保留目录内全部文件，不能只复制 `FeishuWikiExporter`。TAR.GZ 会保留 Linux 执行权限：
 
 ```bash
-tar -xzf feishu-wiki-exporter-0.3.6-linux-x64-portable.tar.gz
-cd feishu-wiki-exporter-0.3.6-linux-x64
+tar -xzf feishu-wiki-exporter-0.3.7-linux-x64-portable.tar.gz
+cd feishu-wiki-exporter-0.3.7-linux-x64
 ./FeishuWikiExporter
 ```
 
